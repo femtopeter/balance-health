@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Balance">
+<meta name="theme-color" content="#2F5D8C">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Balance — Gesundheit</title>
+<style>
+  :root {
+    --primary: #2F5D8C;
+    --secondary: #F28C28;
+    --bg: #F4F7FA;
+    --text: #1F2A33;
+    --grey: #D9E1E8;
+    --surface: #FFFFFF;
+    --surface2: #EDF1F5;
+    --border: #D9E1E8;
+    --dim: #6B7A8D;
+    --green: #22C55E;
+    --red: #EF4444;
+    --purple: #8B5CF6;
+    --blue: #3B82F6;
+    --teal: #14B8A6;
+    --orange: #F28C28;
+    --radius: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0F1620;
+      --text: #E6EDF3;
+      --surface: #172230;
+      --surface2: #1F2C3D;
+      --border: #2A3A4E;
+      --dim: #8B9AAD;
+      --grey: #2A3A4E;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior: none;
+  }
+
+  .app { max-width: 500px; margin: 0 auto; padding: 12px 14px 96px; }
+
+  header { text-align: center; padding: 14px 0 6px; }
+  header h1 { font-size: 1.25rem; font-weight: 700; color: var(--primary); letter-spacing: -0.02em; }
+  .subtitle { color: var(--dim); font-size: 0.72rem; font-weight: 500; margin-top: 2px; }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around;
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+  .nav-btn {
+    background: none; border: none; color: var(--dim);
+    padding: 4px 6px; font-size: 0.62rem; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: color 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;
+  }
+  .nav-btn .ico { font-size: 1.1rem; line-height: 1; }
+  .nav-btn.active { color: var(--primary); }
+
+  /* Week selector */
+  .week-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px 0; }
+  .week-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-size: 1rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; color: var(--text);
+  }
+  .week-label { font-family: 'SF Mono','Menlo',monospace; font-size: 0.78rem; color: var(--primary); font-weight: 600; text-align: center; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 2px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 3px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .tab {
+    flex: 1; padding: 8px 4px; text-align: center; border-radius: 5px;
+    cursor: pointer; font-size: 0.7rem; font-weight: 600; color: var(--dim);
+    border: none; background: none; font-family: inherit; white-space: nowrap; transition: all 0.15s;
+  }
+  .tab.active { background: var(--primary); color: #fff; }
+
+  /* Segmented (sub) control */
+  .seg { display: flex; gap: 4px; margin-bottom: 12px; }
+  .seg button {
+    flex: 1; padding: 7px 4px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--dim); font-size: 0.7rem; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+  }
+  .seg button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .badge {
+    font-family: 'SF Mono','Menlo',monospace; font-size: 0.62rem;
+    padding: 2px 8px; border-radius: var(--radius); font-weight: 600; display: inline-block;
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+  }
+  .card-title { font-size: 0.82rem; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+  .card-sub { font-size: 0.68rem; color: var(--dim); font-weight: 500; margin-top: -4px; margin-bottom: 10px; }
+
+  .day-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .day-focus { font-size: 0.78rem; color: var(--dim); font-weight: 500; }
+
+  .exercise { padding: 10px 0; border-bottom: 1px solid var(--bg); }
+  .exercise:last-child { border-bottom: none; }
+  .ex-name { font-weight: 600; font-size: 0.8rem; margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .ex-target { font-family: 'SF Mono','Menlo',monospace; font-size: 0.72rem; color: var(--dim); margin-bottom: 6px; }
+  .set-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
+  .set-col { text-align: center; }
+  .set-input {
+    width: 48px; padding: 7px 4px; border-radius: 5px; border: 1.5px solid var(--border);
+    font-size: 0.82rem; font-family: 'SF Mono','Menlo',monospace; text-align: center;
+    outline: none; background: var(--surface); color: var(--text); -webkit-appearance: none; appearance: none;
+  }
+  .set-input:focus { border-color: var(--primary); }
+  .set-input.hit { border-color: var(--green); background: #22C55E18; }
+  .set-input.miss { border-color: var(--orange); background: #F28C2818; }
+  .set-label { font-size: 0.6rem; color: var(--dim); margin-top: 2px; }
+  .kg-input {
+    width: 62px; padding: 7px 4px; border-radius: 5px; border: 1.5px solid var(--secondary);
+    font-size: 0.8rem; font-family: 'SF Mono','Menlo',monospace; text-align: center;
+    outline: none; background: var(--surface); color: var(--text); -webkit-appearance: none;
+  }
+  .kg-wrap { display: flex; flex-direction: column; align-items: center; margin-left: auto; }
+
+  /* Stats bars */
+  .stat-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .stat-name { width: 84px; font-size: 0.72rem; font-weight: 600; flex-shrink: 0; }
+  .stat-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
+  .stat-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .stat-val { font-family: 'SF Mono','Menlo',monospace; font-size: 0.68rem; font-weight: 600; min-width: 46px; text-align: right; }
+
+  /* Nutrition / generic inputs */
+  .field { margin-bottom: 8px; }
+  .flabel { font-size: 0.68rem; color: var(--dim); font-weight: 600; margin-bottom: 3px; }
+  .finput {
+    width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--border);
+    font-size: 0.82rem; font-family: inherit; outline: none;
+    background: var(--surface); color: var(--text); -webkit-appearance: none;
+  }
+  .finput:focus { border-color: var(--primary); }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > * { flex: 1; }
+
+  /* Nudge */
+  .nudge {
+    background: #F28C2812; border: 1px solid #F28C2833; border-radius: var(--radius);
+    padding: 10px 12px; margin-bottom: 8px; font-size: 0.74rem; line-height: 1.5;
+  }
+  .nudge.good { background: #22C55E12; border-color: #22C55E33; }
+  .nudge.info { background: #3B82F612; border-color: #3B82F633; }
+
+  .rest-msg { text-align: center; padding: 32px 20px; color: var(--dim); font-size: 0.85rem; }
+  .rest-msg .emoji { font-size: 2rem; margin-bottom: 10px; }
+
+  /* Morning toggle */
+  .morning-toggle { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .morning-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+  .morning-header:active { background: var(--surface2); }
+  .morning-body { padding: 0 14px 12px; display: none; }
+  .morning-toggle.open .morning-body { display: block; }
+  .morning-ex { padding: 6px 0; border-bottom: 1px solid var(--bg); font-size: 0.76rem; }
+  .morning-ex:last-child { border-bottom: none; }
+  .morning-ex .cue { color: var(--purple); font-style: italic; font-size: 0.7rem; margin-top: 2px; }
+  .chevron { color: var(--dim); font-size: 0.7rem; font-weight: 700; transition: transform 0.15s; }
+  .morning-toggle.open .chevron { transform: rotate(90deg); }
+
+  .section-divider { font-size: 0.65rem; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 0 4px; }
+
+  /* Balance ring */
+  .ring-wrap { display: flex; align-items: center; gap: 16px; }
+  .ring { width: 96px; height: 96px; flex-shrink: 0; }
+  .ring-legend { flex: 1; }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; padding: 2px 0; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .legend-val { margin-left: auto; font-family: 'SF Mono','Menlo',monospace; font-weight: 600; font-size: 0.7rem; }
+
+  /* Pillar quick tiles */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .tile .tlabel { font-size: 0.64rem; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tile .tval { font-size: 1.15rem; font-weight: 700; margin-top: 3px; font-family: 'SF Mono','Menlo',monospace; }
+  .tile .tsub { font-size: 0.66rem; color: var(--dim); margin-top: 1px; }
+
+  /* Scale 1-5 buttons */
+  .scale { display: flex; gap: 6px; }
+  .scale button {
+    flex: 1; aspect-ratio: 1; border-radius: 8px; border: 1.5px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 0.9rem; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+  }
+  .scale button.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* Breathing */
+  .breath-stage { display: flex; flex-direction: column; align-items: center; padding: 8px 0 4px; }
+  .breath-circle {
+    width: 150px; height: 150px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, var(--teal), var(--primary));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 0.9rem; text-align: center;
+    transform: scale(0.55); transition: transform 5.5s ease-in-out;
+    box-shadow: 0 8px 30px rgba(20,184,166,0.25);
+  }
+  .breath-circle.inhale { transform: scale(1); }
+  .breath-circle.hold { transform: scale(1); }
+  .breath-meta { text-align: center; margin-top: 12px; font-size: 0.74rem; color: var(--dim); }
+  .breath-meta strong { color: var(--text); }
+
+  .btn {
+    width: 100%; padding: 11px; border-radius: 8px; border: none;
+    background: var(--primary); color: #fff; font-size: 0.82rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; margin-top: 8px;
+  }
+  .btn.ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--red); }
+  .btn.sec { background: var(--secondary); }
+
+  .list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--bg); font-size: 0.76rem; }
+  .list-item:last-child { border-bottom: none; }
+
+  .spark { display: block; }
+  .hint { font-size: 0.7rem; color: var(--dim); line-height: 1.5; }
+  a { color: var(--blue); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <h1 id="app-title">Heute</h1>
+    <div class="subtitle" id="app-sub">Balance · Gesundheit im Gleichgewicht</div>
+  </header>
+  <div id="week-selector"></div>
+  <div id="main-content"></div>
+</div>
+
+<div class="bottom-nav" id="bottom-nav"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  BALANCE — ganzheitliche Gesundheits-App
+//  Säulen: Training · Ernährung · Erholung/Schlaf · Arbeit
+//  Zielwerte evidenzbasiert (siehe Profil → Wissenschaft)
+// ═══════════════════════════════════════════════════════════
+
+// ─── TRAINING DATA (unverändert aus v2) ───
+const WEEK_TYPES = [
+  { label: "Progressive 1", short: "P1", color: "#2F5D8C" },
+  { label: "Progressive 2", short: "P2", color: "#2F5D8C" },
+  { label: "Progressive 3", short: "P3", color: "#2F5D8C" },
+  { label: "Overreaching", short: "OR", color: "#F28C28" },
+  { label: "Peak", short: "PK", color: "#EF4444" },
+  { label: "Deload", short: "DL", color: "#22C55E" },
+];
+
+const MUSCLE_MAP = {
+  "Strict Pull-Ups": ["Lats","Biceps","Rear Delts"],
+  "Ring Push-Ups": ["Chest","Triceps","Front Delts"],
+  "DB Overhead Press": ["Shoulders","Triceps"],
+  "Ring Rows": ["Upper Back","Biceps","Rear Delts"],
+  "Farmer's Carry": ["Forearms","Traps","Core"],
+  "Goblet Squats": ["Quads","Glutes","Core"],
+  "Romanian Deadlift": ["Hamstrings","Glutes","Lower Back"],
+  "Walking Lunges": ["Quads","Glutes","Hamstrings"],
+  "Calf Raise": ["Calves"],
+  "Pallof Press": ["Core"],
+  "DB Thrusters": ["Quads","Shoulders","Glutes"],
+  "DB Swings": ["Hamstrings","Glutes","Core"],
+  "Hollow Hold": ["Core"],
+  "Ring Dips": ["Chest","Triceps","Front Delts"],
+  "Deficit Push-Ups": ["Chest","Triceps"],
+  "Ring Face Pulls": ["Rear Delts","Upper Back"],
+  "L-Sit": ["Core","Hip Flexors"],
+  "Scapula Pulls": ["Upper Back","Lats"],
+};
+
+const DAYS = [
+  { name:"Mo", type:"KRAFT", color:"#F28C28", focus:"Upper Body — Push & Pull",
+    morning: { title:"Morgenroutine — Schulter & Spine", time:"12–15 min", exercises:[
+      {n:"Posterior Pelvic Tilt Hold",d:"90–110s je nach Woche",c:"LWS in Boden drücken"},
+      {n:"Dead Bugs",d:"3×8–10/Seite",c:"If your back arches, you've gone too far"},
+      {n:"Scapula CARs",d:"5 Kreise/Seite",c:"Aktiviert Serratus + unteren Trap"},
+      {n:"Band Pull-Aparts",d:"2×15",c:"Non-negotiable vor Pull-Arbeit"},
+      {n:"Wall Slides",d:"2×10",c:"Overhead-Mobilität testen"},
+      {n:"Cat-Cow",d:"10 Reps",c:"Thoracic Extension Fokus"},
+    ]},
+    exercises:[
+      {name:"Strict Pull-Ups",sets:4,targets:[6,7,8,9,10,6],unit:"reps"},
+      {name:"Ring Push-Ups",sets:3,targets:[8,10,12,14,12,8],unit:"reps"},
+      {name:"DB Overhead Press",sets:3,targets:[8,10,10,12,10,8],unit:"reps"},
+      {name:"Ring Rows",sets:3,targets:[10,12,12,14,12,8],unit:"reps"},
+      {name:"Farmer's Carry",sets:3,targets:[45,50,55,60,55,40],unit:"sec"},
+    ]
+  },
+  { name:"Di", type:"CROSSFIT", color:"#EF4444", focus:"Morgen: Mobility · Mittag: CrossFit",
+    morning: { title:"Morgenroutine — Thoracic & Hüfte", time:"12–15 min", exercises:[
+      {n:"Posterior Pelvic Tilt Hold",d:"wie Mo",c:""},
+      {n:"Dead Bugs",d:"3×8/Seite",c:""},
+      {n:"Open Book Rotation",d:"8/Seite",c:"Thoracic Rotation für Front Rack"},
+      {n:"World's Greatest Stretch",d:"5/Seite",c:"Maximale Mobilität in einer Übung"},
+      {n:"Scapula Push-Ups",d:"2×10",c:"Serratus-Aktivierung"},
+      {n:"Hip 90/90 Transitions",d:"8/Seite",c:"Hüftrotation → Squats & Lunges"},
+    ]},
+    exercises:[], noLog:true
+  },
+  { name:"Mi", type:"KRAFT", color:"#F28C28", focus:"Lower Body — Squat & Hinge",
+    morning: { title:"Morgenroutine — Hüfte & Posterior Chain", time:"12–15 min", exercises:[
+      {n:"Posterior Pelvic Tilt Hold",d:"wie Mo",c:""},
+      {n:"Dead Bugs",d:"3×8/Seite",c:""},
+      {n:"Hip CARs",d:"5/Richtung/Seite",c:"Train the joint, not just the muscle"},
+      {n:"Adductor Rock-Backs",d:"10/Seite",c:"Öffnet Adduktoren für tiefere Squats"},
+      {n:"Glute Bridge (3s Hold)",d:"2×10",c:"Glute-Aktivierung vor Hinge"},
+      {n:"Shinbox Get-Ups",d:"5/Seite",c:"Hüftmobilität + End-Range Kraft"},
+    ]},
+    exercises:[
+      {name:"Goblet Squats",sets:4,targets:[8,10,10,12,10,8],unit:"reps"},
+      {name:"Romanian Deadlift",sets:3,targets:[10,12,12,14,12,10],unit:"reps"},
+      {name:"Walking Lunges",sets:3,targets:[10,10,12,12,10,8],unit:"/Bein"},
+      {name:"Calf Raise",sets:3,targets:[15,15,18,20,18,12],unit:"/Seite"},
+      {name:"Pallof Press",sets:3,targets:[10,10,12,12,10,8],unit:"/Seite"},
+    ]
+  },
+  { name:"Do", type:"CONDITIONING", color:"#3B82F6", focus:"EMOM Conditioning",
+    morning: { title:"Morgenroutine — Core & Recovery", time:"10–12 min", exercises:[
+      {n:"Posterior Pelvic Tilt Hold",d:"wie Mo",c:""},
+      {n:"Dead Bugs",d:"3×8/Seite",c:""},
+      {n:"Prone Y-T-W Raises",d:"8 je Position",c:"The muscles you can't see matter most"},
+      {n:"Cat-Cow",d:"10 Reps",c:""},
+      {n:"Pigeon Stretch",d:"45s/Seite",c:"Hüftbeuger-Kompensation"},
+      {n:"Shoulder Dislocates",d:"10 Reps",c:""},
+    ]},
+    exercises:[
+      {name:"DB Thrusters",sets:5,targets:[10,10,12,14,12,8],unit:"reps"},
+      {name:"Ring Rows",sets:5,targets:[12,12,14,15,12,10],unit:"reps"},
+      {name:"DB Swings",sets:5,targets:[15,15,18,20,18,12],unit:"reps"},
+      {name:"Hollow Hold",sets:5,targets:[30,35,40,45,40,25],unit:"sec"},
+    ]
+  },
+  { name:"Fr", type:"SKILL", color:"#8B5CF6", focus:"Rings & Core",
+    morning: { title:"Morgenroutine — Schulter-Prehab Intensiv", time:"12–15 min", exercises:[
+      {n:"Posterior Pelvic Tilt Hold",d:"wie Mo",c:""},
+      {n:"Dead Bugs",d:"3×10/Seite (W3+: mit 2kg)",c:""},
+      {n:"Scapula CARs",d:"5/Seite",c:""},
+      {n:"Band External Rotation 90°",d:"2×12/Seite",c:"Rotator cuff = shoulder insurance"},
+      {n:"Forearm Stretch",d:"30s je Richtung",c:"Prehab Ellbogen (Ringe + Bouldern)"},
+      {n:"Passive Hang",d:"2×30s",c:"Decompression"},
+    ]},
+    exercises:[
+      {name:"Ring Dips",sets:3,targets:[5,6,8,8,8,5],unit:"reps"},
+      {name:"Deficit Push-Ups",sets:3,targets:[10,12,12,14,12,10],unit:"reps"},
+      {name:"Ring Face Pulls",sets:3,targets:[12,12,14,15,14,10],unit:"reps"},
+      {name:"L-Sit",sets:4,targets:[10,12,12,15,12,8],unit:"sec"},
+      {name:"Pallof Press",sets:3,targets:[8,10,10,12,10,8],unit:"/Seite"},
+      {name:"Scapula Pulls",sets:3,targets:[5,6,7,8,7,5],unit:"reps"},
+    ]
+  },
+  { name:"Sa", type:"AKTIV", color:"#3B82F6", focus:"Hike & Fly / Erholung",
+    morning: { title:"Morgenroutine — Mobility Flow", time:"10 min", exercises:[
+      {n:"Cat-Cow",d:"10 Reps",c:""},
+      {n:"World's Greatest Stretch",d:"5/Seite",c:""},
+      {n:"Hip 90/90",d:"8/Seite",c:""},
+      {n:"Shoulder Dislocates",d:"10 Reps",c:""},
+      {n:"Calf Stretch",d:"30s/Seite",c:""},
+      {n:"Deep Squat Hold",d:"60s",c:""},
+    ]},
+    exercises:[]
+  },
+  { name:"So", type:"RECOVERY", color:"#22C55E", focus:"Ruhetag",
+    morning: { title:"Morgenroutine (optional)", time:"10 min", exercises:[
+      {n:"Cat-Cow",d:"10 Reps",c:""},
+      {n:"Open Book Rotation",d:"5/Seite",c:""},
+      {n:"Pigeon Stretch",d:"60s/Seite",c:""},
+      {n:"Passive Hang",d:"60s",c:""},
+    ]},
+    exercises:[]
+  },
+];
+
+// ─── STATE + MIGRATION ───
+const DEFAULT_PROFILE = {
+  bodyweight: 75,       // kg — im Profil anpassen
+  proteinPerKg: 1.8,    // g/kg/Tag (Evidenz: 1.6–2.2)
+  sleepTarget: 8,       // h (Athlet; <7h erhöht Verletzungsrisiko)
+  calorieTarget: 2500,  // kcal — grob, im Profil anpassen
+  breathMinTarget: 5,   // min/Tag Resonanzatmung
+  workDayTarget: 8.5,   // h Zielarbeitszeit
+  breaksTarget: 4,      // Mikropausen/Tag
+};
+
+function loadState() {
+  const raw = localStorage.getItem("training-v3");
+  if (raw) {
+    const s = JSON.parse(raw);
+    s.profile = Object.assign({}, DEFAULT_PROFILE, s.profile || {});
+    s.recovery = s.recovery || {};
+    s.work = s.work || {};
+    s.hikefly = s.hikefly || [];
+    s.weights = s.weights || {};
+    return s;
+  }
+  // Migration von v2
+  const old = JSON.parse(localStorage.getItem("training-v2") || "null");
+  if (old) {
+    return {
+      version: 3, week: old.week || 1, logs: old.logs || {},
+      weights: {}, nutrition: old.nutrition || {}, recovery: {}, work: {},
+      hikefly: [], morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
+    };
+  }
+  return {
+    version: 3, week: 1, logs: {}, weights: {}, nutrition: {},
+    recovery: {}, work: {}, hikefly: [], morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
+  };
+}
+
+let state = loadState();
+let currentView = "today";
+let statsSub = "muscle";     // Sub-Tab in Training-Stats
+let currentDay = (new Date().getDay() + 6) % 7; // Mon=0
+
+function save() { localStorage.setItem("training-v3", JSON.stringify(state)); }
+function todayKey() { return new Date().toISOString().split("T")[0]; }
+function proteinTarget() { return Math.round(state.profile.bodyweight * state.profile.proteinPerKg); }
+function proteinPerMeal() { return Math.round(state.profile.bodyweight * 0.4); }
+
+// ═══ RENDER ═══
+const NAV = [
+  { k:"today", l:"Heute", ico:"◎", title:"Heute", sub:"Balance · Gesundheit im Gleichgewicht" },
+  { k:"plan", l:"Training", ico:"▲", title:"Training", sub:"6-Wochen Mesozyklus · 3P → OR → PK → DL" },
+  { k:"nutrition", l:"Ernährung", ico:"◍", title:"Ernährung", sub:"Protein, Kalorien & Regeneration" },
+  { k:"recovery", l:"Erholung", ico:"◐", title:"Erholung & Arbeit", sub:"Schlaf · Atmung · Stress · Balance" },
+  { k:"profile", l:"Profil", ico:"◇", title:"Profil", sub:"Ziele, Daten & Wissenschaft" },
+];
+
+function render() {
+  renderNav();
+  const nav = NAV.find(n => n.k === currentView);
+  document.getElementById("app-title").textContent = nav.title;
+  document.getElementById("app-sub").textContent = nav.sub;
+  renderWeekSelector();
+  renderContent();
+}
+
+function renderNav() {
+  document.getElementById("bottom-nav").innerHTML = NAV.map(v =>
+    `<button class="nav-btn ${currentView===v.k?'active':''}" onclick="switchView('${v.k}')">
+      <span class="ico">${v.ico}</span>${v.l}</button>`
+  ).join("");
+}
+
+function renderWeekSelector() {
+  const el = document.getElementById("week-selector");
+  if (currentView !== "plan") { el.innerHTML = ""; return; }
+  const wt = WEEK_TYPES[state.week - 1];
+  el.innerHTML = `<div class="week-row">
+    <button class="week-btn" onclick="changeWeek(-1)">‹</button>
+    <div class="week-label">
+      <span class="badge" style="background:${wt.color}22;color:${wt.color};margin-right:6px">${wt.short}</span>
+      Woche ${state.week}/6 — ${wt.label}
+    </div>
+    <button class="week-btn" onclick="changeWeek(1)">›</button>
+  </div>`;
+}
+
+function renderContent() {
+  const el = document.getElementById("main-content");
+  const map = { today: renderToday, plan: renderPlan, nutrition: renderNutrition, recovery: renderRecovery, profile: renderProfile };
+  el.innerHTML = map[currentView]();
+}
+
+// ─── HELPERS ───
+function lastNNutrition(n) {
+  const r = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = d.toISOString().split("T")[0];
+    if (state.nutrition[k]) r.push(state.nutrition[k]);
+  }
+  return r;
+}
+function avgField(arr, field) {
+  const vals = arr.map(d => Number(d[field])).filter(v => v > 0);
+  return vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : null;
+}
+function clampPct(v) { return Math.max(0, Math.min(100, Math.round(v))); }
+
+// ═══ HEUTE / OVERVIEW ═══
+function pillarScores() {
+  const tk = todayKey();
+  const nut = state.nutrition[tk] || {};
+  const rec = state.recovery[tk] || {};
+  const wrk = state.work[tk] || {};
+  const p = state.profile;
+
+  // Training: hat heute geplantes Training Logs? Ruhetag zählt als erfüllt.
+  const day = DAYS[currentDay];
+  let training;
+  if (day.exercises.length === 0 && !day.noLog) training = 100; // Ruhe/Aktiv = ok
+  else if (day.noLog) training = 100; // CrossFit selbst geloggt
+  else {
+    const total = day.exercises.length;
+    let done = 0;
+    day.exercises.forEach(ex => {
+      const key = `W${state.week}-${day.name}-${ex.name}`;
+      if ((state.logs[key]||[]).some(v => v !== "" && v != null)) done++;
+    });
+    training = total ? clampPct(done/total*100) : 100;
+  }
+
+  // Ernährung: Protein heute vs Ziel
+  const nutr = nut.protein ? clampPct(nut.protein / proteinTarget() * 100) : 0;
+
+  // Erholung: Schlaf letzte Nacht + Atmung + Stress (invers)
+  const sleepPct = nut.sleep ? clampPct(nut.sleep / p.sleepTarget * 100) : 0;
+  const breathPct = rec.breathMin ? clampPct(rec.breathMin / p.breathMinTarget * 100) : 0;
+  const stressPct = rec.stress ? clampPct((6 - rec.stress) / 5 * 100) : 60; // neutral wenn kein Log
+  const recovery = clampPct(sleepPct*0.6 + breathPct*0.2 + stressPct*0.2);
+
+  // Arbeit: Balance = Pausen erreicht & nicht massiv über Zielarbeitszeit
+  let work = 60;
+  if (wrk.hours != null || wrk.breaks != null) {
+    const breaksPct = clampPct((wrk.breaks||0) / p.breaksTarget * 100);
+    const overwork = wrk.hours ? Math.max(0, wrk.hours - (p.workDayTarget + 1.5)) : 0;
+    work = clampPct(breaksPct - overwork * 12);
+  }
+
+  return { training, nutrition: nutr, recovery, work };
+}
+
+function renderToday() {
+  const s = pillarScores();
+  const overall = Math.round((s.training + s.nutrition + s.recovery + s.work) / 4);
+  const segs = [
+    { l:"Training", v:s.training, c:"#F28C28" },
+    { l:"Ernährung", v:s.nutrition, c:"#22C55E" },
+    { l:"Erholung", v:s.recovery, c:"#14B8A6" },
+    { l:"Arbeit", v:s.work, c:"#3B82F6" },
+  ];
+
+  // Donut ring aus 4 Segmenten (jeweils 25% Bogen, gefüllt nach Score)
+  const R = 42, C = 2*Math.PI*R, seg = C/4, gap = 6;
+  let dash = "", off = 0, ringSvg = "";
+  segs.forEach((sg,i) => {
+    const filled = (seg-gap) * (sg.v/100);
+    ringSvg += `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${sg.c}22" stroke-width="9"
+        stroke-dasharray="${seg-gap} ${C-(seg-gap)}" stroke-dashoffset="${-i*seg}" />
+      <circle cx="50" cy="50" r="${R}" fill="none" stroke="${sg.c}" stroke-width="9" stroke-linecap="round"
+        stroke-dasharray="${filled} ${C-filled}" stroke-dashoffset="${-i*seg}" />`;
+  });
+
+  let h = `<div class="card">
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 100 100" style="transform:rotate(-90deg)">
+        ${ringSvg}
+        <text x="50" y="50" transform="rotate(90 50 50)" text-anchor="middle" dominant-baseline="central"
+          style="font:700 20px -apple-system;fill:var(--text)">${overall}</text>
+      </svg>
+      <div class="ring-legend">
+        ${segs.map(sg => `<div class="legend-row">
+          <span class="legend-dot" style="background:${sg.c}"></span>${sg.l}
+          <span class="legend-val" style="color:${sg.c}">${sg.v}%</span></div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+
+  // Nudges (smart, evidenzbasiert)
+  h += renderNudges();
+
+  // Quick tiles
+  const tk = todayKey();
+  const nut = state.nutrition[tk] || {};
+  const rec = state.recovery[tk] || {};
+  const wrk = state.work[tk] || {};
+  const day = DAYS[currentDay];
+  h += `<div class="tiles">
+    <div class="tile" onclick="switchView('plan')">
+      <div class="tlabel">Heute · ${day.name}</div>
+      <div class="tval" style="font-size:0.92rem">${day.type}</div>
+      <div class="tsub">${day.focus}</div>
+    </div>
+    <div class="tile" onclick="switchView('nutrition')">
+      <div class="tlabel">Protein</div>
+      <div class="tval">${nut.protein||0}<span style="font-size:0.7rem;color:var(--dim)">/${proteinTarget()}g</span></div>
+      <div class="tsub">Ziel ${state.profile.proteinPerKg} g/kg</div>
+    </div>
+    <div class="tile" onclick="switchView('nutrition')">
+      <div class="tlabel">Schlaf</div>
+      <div class="tval">${nut.sleep!=null&&nut.sleep!==""?nut.sleep:"–"}<span style="font-size:0.7rem;color:var(--dim)">/${state.profile.sleepTarget}h</span></div>
+      <div class="tsub">letzte Nacht</div>
+    </div>
+    <div class="tile" onclick="switchView('recovery')">
+      <div class="tlabel">Atmung</div>
+      <div class="tval">${rec.breathMin||0}<span style="font-size:0.7rem;color:var(--dim)">/${state.profile.breathMinTarget}min</span></div>
+      <div class="tsub">Resonanzatmung</div>
+    </div>
+  </div>`;
+
+  // Wochen Hike & Fly Höhenmeter
+  const weekAscent = weeklyAscent();
+  h += `<div class="card" onclick="switchView('recovery')">
+    <div class="card-title">Diese Woche aktiv</div>
+    <div class="stat-row"><div class="stat-name">Hike & Fly</div>
+      <div class="stat-bar"><div class="stat-fill" style="width:${clampPct(weekAscent/3000*100)}%;background:#3B82F6"></div></div>
+      <div class="stat-val" style="color:#3B82F6">${weekAscent}m</div></div>
+    <div class="hint" style="margin-top:6px">Aerobe Grundlage stärkt Erholung & schützt Herz-Kreislauf. Sa-Ziel: bis 3000 Hm.</div>
+  </div>`;
+
+  return h;
+}
+
+function renderNudges() {
+  const nudges = [];
+  const tk = todayKey();
+  const last3 = lastNNutrition(3);
+  const nutToday = state.nutrition[tk] || {};
+  const recToday = state.recovery[tk] || {};
+  const wrkToday = state.work[tk] || {};
+  const p = state.profile;
+
+  // Protein
+  const avgP = avgField(last3, "protein");
+  if (avgP !== null && avgP < proteinTarget() * 0.8)
+    nudges.push({t:`🥩 Protein-Schnitt ${Math.round(avgP)}g/Tag — Ziel ${proteinTarget()}g (${p.proteinPerKg} g/kg). Verteil ~${proteinPerMeal()}g auf 4 Mahlzeiten für maximale Muskelproteinsynthese.`, c:""});
+
+  // Schlaf
+  const avgS = avgField(last3, "sleep");
+  if (avgS !== null && avgS < 7)
+    nudges.push({t:`😴 Schlaf ${avgS.toFixed(1)}h im 3-Tage-Schnitt. Unter 7h über ≥14 Tage ~1.7× höheres Verletzungsrisiko und weniger Kraft.`, c:""});
+
+  // Alkohol + Trainingstag morgen
+  if (nutToday.alcohol && nutToday.alcohol > 0) {
+    const tomorrow = DAYS[(currentDay+1)%7];
+    const hard = tomorrow.exercises.length > 0 || tomorrow.noLog;
+    nudges.push({t:`🍺 ${nutToday.alcohol} Drinks heute. Alkohol senkt die Muskelproteinsynthese um 24–37% nach dem Training${hard?` — morgen (${tomorrow.name}) steht ${tomorrow.type} an. Unter ~0.5 g/kg bleibt der Effekt gering.`:`. Unter ~0.5 g/kg bleibt der Effekt gering.`}`, c:"info"});
+  }
+
+  // Atmung noch nicht gemacht
+  if (!(recToday.breathMin >= p.breathMinTarget))
+    nudges.push({t:`🌬️ Noch keine ${p.breathMinTarget} min Resonanzatmung heute. ~5.5 Atemzüge/min erhöhen die Herzratenvariabilität und den Vagustonus. → Tab «Erholung»`, c:"info"});
+
+  // Kein Nutrition-Log
+  if (!state.nutrition[tk])
+    nudges.push({t:`📝 Kein Ernährungs-Log heute. → Tab «Ernährung»`, c:"info"});
+
+  // Überarbeitung
+  if (wrkToday.hours && wrkToday.hours > p.workDayTarget + 2)
+    nudges.push({t:`💼 ${wrkToday.hours}h Arbeit heute. Mikropausen (5–10 min) reduzieren Ermüdung messbar — plane bewusst Erholungsinseln ein.`, c:""});
+
+  // Deload-Reminder
+  if (state.week === 6)
+    nudges.push({t:`✅ Deload-Woche: Volumen & Intensität bewusst runter (Wdh./Sätze reduzieren, Technik halten). Das lädt dich fürs nächste Mesozyklus neu auf.`, c:"good"});
+
+  if (nudges.length === 0)
+    nudges.push({t:`✨ Alles im grünen Bereich. Weiter so.`, c:"good"});
+
+  return nudges.map(n => `<div class="nudge ${n.c}">${n.t}</div>`).join("");
+}
+
+// ═══ TRAINING ═══
+function renderPlan() {
+  let h = `<div class="seg">
+    <button class="${statsSub==='muscle'?'':''} ${currentView==='plan'&&!window._showStats?'active':''}" onclick="showTraining()">Plan</button>
+    <button class="${window._showStats?'active':''}" onclick="showStats()">Statistik</button>
+  </div>`;
+
+  if (window._showStats) return h + renderStats();
+
+  h += `<div class="tabs">${DAYS.map((d,i) =>
+    `<button class="tab ${i===currentDay?'active':''}" onclick="selectDay(${i})">${d.name}</button>`
+  ).join("")}</div>`;
+
+  const day = DAYS[currentDay];
+  h += `<div class="day-header">
+    <span class="badge" style="background:${day.color}22;color:${day.color}">${day.type}</span>
+    <span class="day-focus">${day.focus}</span>
+  </div>`;
+
+  if (day.morning) {
+    const mKey = `morning-${currentDay}`;
+    const isOpen = state.morningOpen[mKey];
+    h += `<div class="morning-toggle ${isOpen?'open':''}">
+      <div class="morning-header" onclick="toggleMorning('${mKey}')">
+        <span>${day.morning.title} <span style="color:var(--dim);font-size:0.7rem">${day.morning.time}</span></span>
+        <span class="chevron">›</span>
+      </div>
+      <div class="morning-body">
+        ${day.morning.exercises.map(e => `<div class="morning-ex">
+          <strong>${e.n}</strong> — ${e.d}
+          ${e.c ? `<div class="cue">${e.c}</div>` : ''}
+        </div>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  if (day.noLog) {
+    h += `<div class="card" style="text-align:center;color:var(--dim)">
+      <strong>CrossFit WOD</strong> — wie vorgegeben. Kein zusätzliches Krafttraining.
+    </div>`;
+  } else if (day.exercises.length === 0) {
+    h += `<div class="rest-msg"><div class="emoji">${day.type==='AKTIV'?'⛰️':'🧘'}</div>
+      ${day.type==='AKTIV' ? 'Hike & Fly oder aktive Erholung. Log im Tab «Erholung».' : 'Ruhetag. Kraft wächst in der Erholung.'}
+    </div>`;
+  } else {
+    h += `<div class="card">`;
+    day.exercises.forEach(ex => {
+      const target = ex.targets[state.week - 1];
+      const key = `W${state.week}-${day.name}-${ex.name}`;
+      const wKey = `${day.name}-${ex.name}`;
+      const logged = state.logs[key] || [];
+      const kg = state.weights[key] !== undefined ? state.weights[key] : "";
+      const usesWeight = /DB |Goblet|Deadlift|Farmer|Thruster|Swing/.test(ex.name);
+      h += `<div class="exercise">
+        <div class="ex-name">${ex.name} ${sparkline(wKey)}</div>
+        <div class="ex-target">Ziel: ${ex.sets}×${target} ${ex.unit}</div>
+        <div class="set-row">
+          ${Array.from({length: ex.sets}).map((_,i) => {
+            const v = logged[i] !== undefined ? logged[i] : "";
+            const cls = v === "" ? "" : (Number(v) >= target ? "hit" : "miss");
+            return `<div class="set-col">
+              <input class="set-input ${cls}" type="number" inputmode="numeric"
+                value="${v}" placeholder="–"
+                onchange="logSet('${key}',${i},this.value,${ex.sets})" />
+              <div class="set-label">S${i+1}</div>
+            </div>`;
+          }).join("")}
+          ${usesWeight ? `<div class="kg-wrap">
+            <input class="kg-input" type="number" inputmode="decimal" step="0.5" placeholder="kg"
+              value="${kg}" onchange="logWeight('${key}',this.value)" />
+            <div class="set-label">kg</div></div>` : ``}
+        </div>
+      </div>`;
+    });
+    h += `</div>`;
+    h += `<div class="hint" style="padding:0 4px">Grün = Ziel erreicht. Wenn du das obere Ziel 2–3 Wochen konstant triffst: Gewicht erhöhen (progressive Überlastung).</div>`;
+  }
+  return h;
+}
+
+// Mini-Sparkline: bester Satz je Woche für diese Übung
+function sparkline(wKey) {
+  const pts = [];
+  for (let w = 1; w <= 6; w++) {
+    const sets = state.logs[`W${w}-${wKey}`];
+    if (sets && sets.length) {
+      const best = Math.max(...sets.map(v => Number(v)||0));
+      pts.push(best > 0 ? best : null);
+    } else pts.push(null);
+  }
+  const real = pts.filter(v => v != null);
+  if (real.length < 2) return "";
+  const max = Math.max(...real), min = Math.min(...real);
+  const rng = max - min || 1, W = 54, H = 16;
+  let d = "", started = false;
+  pts.forEach((v,i) => {
+    if (v == null) return;
+    const x = (i/5)*W, y = H - ((v-min)/rng)*H;
+    d += (started?"L":"M") + x.toFixed(1) + " " + y.toFixed(1) + " ";
+    started = true;
+  });
+  const up = real[real.length-1] >= real[0];
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <path d="${d}" fill="none" stroke="${up?'#22C55E':'#F28C28'}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function renderStats() {
+  // Muskelgruppen
+  const muscleVol = {}, muscleTgt = {};
+  Object.entries(state.logs).forEach(([key, sets]) => {
+    if (!key.startsWith(`W${state.week}-`)) return;
+    const exName = key.split("-").slice(2).join("-");
+    const total = sets.reduce((s,v) => s + (Number(v)||0), 0);
+    (MUSCLE_MAP[exName]||[]).forEach(m => { muscleVol[m] = (muscleVol[m]||0) + total; });
+  });
+  DAYS.forEach(day => day.exercises.forEach(ex => {
+    const t = ex.targets[state.week-1];
+    (MUSCLE_MAP[ex.name]||[]).forEach(m => { muscleTgt[m] = (muscleTgt[m]||0) + ex.sets*t; });
+  }));
+
+  const muscles = [...new Set([...Object.keys(muscleVol),...Object.keys(muscleTgt)])].sort();
+  let h = `<div class="card"><div class="card-title">Muskelgruppen — Woche ${state.week}</div>
+    <div class="card-sub">Ist- vs. Soll-Volumen. Evidenz-Korridor: 12–20 Sätze/Muskel/Woche.</div>`;
+  if (muscles.length === 0) h += `<div class="hint">Noch keine Daten für diese Woche.</div>`;
+  else muscles.forEach(m => {
+    const vol = muscleVol[m]||0, tgt = muscleTgt[m]||1, pct = Math.round(vol/tgt*100);
+    const color = pct >= 90 ? "#22C55E" : pct >= 50 ? "#F28C28" : "#6B7A8D";
+    h += `<div class="stat-row"><div class="stat-name">${m}</div>
+      <div class="stat-bar"><div class="stat-fill" style="width:${Math.min(100,pct)}%;background:${color}"></div></div>
+      <div class="stat-val" style="color:${color}">${pct}%</div></div>`;
+  });
+  h += `</div>`;
+
+  // Volumen pro Woche
+  const weekVols = {};
+  Object.entries(state.logs).forEach(([k, sets]) => {
+    const w = parseInt(k.split("-")[0].replace("W",""));
+    weekVols[w] = (weekVols[w]||0) + sets.reduce((s,v) => s + (Number(v)||0), 0);
+  });
+  const weeks = Object.keys(weekVols).map(Number).sort();
+  if (weeks.length >= 2) {
+    const max = Math.max(...Object.values(weekVols));
+    h += `<div class="card"><div class="card-title">Volumen pro Woche</div>`;
+    weeks.forEach(w => {
+      const vol = weekVols[w], pct = Math.round(vol/max*100), wt = WEEK_TYPES[w-1];
+      h += `<div class="stat-row">
+        <div class="badge" style="background:${wt.color}22;color:${wt.color};min-width:32px;text-align:center">${wt.short}</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:${pct}%;background:${wt.color}"></div></div>
+        <div class="stat-val" style="color:var(--dim)">${vol}</div></div>`;
+    });
+    h += `</div>`;
+  }
+  return h;
+}
+
+// ═══ ERNÄHRUNG ═══
+const NUT_FIELDS = [
+  {key:"protein",label:"Protein (g)",type:"number",ph:()=>proteinTarget()},
+  {key:"carbs",label:"Carbs (g)",type:"number",ph:()=>200},
+  {key:"fat",label:"Fett (g)",type:"number",ph:()=>70},
+  {key:"calories",label:"Kalorien (kcal)",type:"number",ph:()=>state.profile.calorieTarget},
+  {key:"sleep",label:"Schlaf letzte Nacht (h)",type:"number",step:"0.5",ph:()=>state.profile.sleepTarget},
+  {key:"sleepQuality",label:"Schlafqualität (1–5)",type:"number",min:1,max:5,ph:()=>4},
+  {key:"alcohol",label:"Alkohol (Standard-Drinks)",type:"number",ph:()=>0},
+  {key:"notes",label:"Notizen",type:"text",ph:()=>"Supplements, Meal Prep…"},
+];
+
+function renderNutrition() {
+  const today = todayKey();
+  const selDate = state._nutDate || today;
+  const entry = state.nutrition[selDate] || {};
+
+  let h = `<div class="card"><div class="card-title">Ernährung & Schlaf</div>
+    <div class="field"><input class="finput" type="date" value="${selDate}" onchange="setNutDate(this.value)" /></div>`;
+
+  // Protein-Fortschritt oben
+  const pPct = entry.protein ? clampPct(entry.protein/proteinTarget()*100) : 0;
+  h += `<div class="stat-row"><div class="stat-name">Protein</div>
+    <div class="stat-bar"><div class="stat-fill" style="width:${pPct}%;background:${pPct>=90?'#22C55E':'#F28C28'}"></div></div>
+    <div class="stat-val">${entry.protein||0}/${proteinTarget()}g</div></div>
+    <div class="hint" style="margin:2px 0 10px">Ziel ${proteinTarget()}g (${state.profile.proteinPerKg} g/kg · ${state.profile.bodyweight}kg) · optimal ~${proteinPerMeal()}g × 4 Mahlzeiten.</div>`;
+
+  NUT_FIELDS.forEach(f => {
+    h += `<div class="field"><div class="flabel">${f.label}</div>
+      <input class="finput" type="${f.type}" ${f.step?`step="${f.step}"`:''} ${f.min?`min="${f.min}"`:''} ${f.max?`max="${f.max}"`:''}
+        placeholder="${f.ph()}" value="${entry[f.key]!==undefined?entry[f.key]:''}"
+        onchange="logNut('${selDate}','${f.key}',this.value,'${f.type}')" /></div>`;
+  });
+  h += `</div>`;
+
+  // 7-Tage Durchschnitt
+  const last7 = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(selDate); d.setDate(d.getDate() - i);
+    const k = d.toISOString().split("T")[0];
+    if (state.nutrition[k]) last7.push(state.nutrition[k]);
+  }
+  if (last7.length >= 2) {
+    h += `<div class="card"><div class="card-title">7-Tage Durchschnitt</div>`;
+    [{k:"sleep",l:"Schlaf",u:"h",t:state.profile.sleepTarget},
+     {k:"protein",l:"Protein",u:"g",t:proteinTarget()},
+     {k:"calories",l:"Kalorien",u:"kcal",t:state.profile.calorieTarget}].forEach(({k,l,u,t}) => {
+      const a = avgField(last7, k); if (a === null) return;
+      const av = Math.round(a*10)/10, pct = Math.round(a/t*100);
+      const color = pct >= 90 ? "#22C55E" : pct >= 70 ? "#F28C28" : "#EF4444";
+      h += `<div class="stat-row"><div class="stat-name">${l}</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:${Math.min(100,pct)}%;background:${color}"></div></div>
+        <div class="stat-val" style="color:${color}">${av}${u}</div></div>`;
+    });
+    const aAlc = last7.reduce((s,d)=>s+(Number(d.alcohol)||0),0);
+    if (aAlc > 0) h += `<div class="hint" style="margin-top:6px">🍺 ${aAlc} Drinks in 7 Tagen. Für Erholung: Trainingstage möglichst alkoholfrei.</div>`;
+    h += `</div>`;
+  }
+  return h;
+}
+
+// ═══ ERHOLUNG & ARBEIT ═══
+function renderRecovery() {
+  const tk = todayKey();
+  const rec = state.recovery[tk] || {};
+  const wrk = state.work[tk] || {};
+  let h = "";
+
+  // Resonanzatmung
+  h += `<div class="card"><div class="card-title">Resonanzatmung</div>
+    <div class="card-sub">~5.5 Atemzüge/min (5.5s ein · 5.5s aus). Steigert HRV & Vagustonus, senkt Stress.</div>
+    <div class="breath-stage">
+      <div class="breath-circle" id="breathCircle">Bereit</div>
+    </div>
+    <div class="breath-meta" id="breathMeta">Heute: <strong>${rec.breathMin||0}</strong> / ${state.profile.breathMinTarget} min</div>
+    <button class="btn" id="breathBtn" onclick="toggleBreath()">Starten</button>
+  </div>`;
+
+  // Stress & Stimmung
+  h += `<div class="card"><div class="card-title">Stress & Stimmung heute</div>
+    <div class="flabel">Stresslevel (1 = ruhig · 5 = angespannt)</div>
+    <div class="scale">${[1,2,3,4,5].map(n =>
+      `<button class="${rec.stress===n?'sel':''}" onclick="setRec('stress',${n})">${n}</button>`).join("")}</div>
+    <div class="flabel" style="margin-top:10px">Stimmung (1 = mies · 5 = top)</div>
+    <div class="scale">${[1,2,3,4,5].map(n =>
+      `<button class="${rec.mood===n?'sel':''}" onclick="setRec('mood',${n})">${n}</button>`).join("")}</div>
+  </div>`;
+
+  // Arbeit & Pausen
+  h += `<div class="card"><div class="card-title">Arbeit & Pausen</div>
+    <div class="card-sub">Mikropausen (5–10 min) reduzieren Ermüdung und halten die Leistung stabil.</div>
+    <div class="row2">
+      <div class="field"><div class="flabel">Arbeitszeit (h)</div>
+        <input class="finput" type="number" step="0.5" inputmode="decimal" placeholder="${state.profile.workDayTarget}"
+          value="${wrk.hours!==undefined?wrk.hours:''}" onchange="setWork('hours',this.value)" /></div>
+      <div class="field"><div class="flabel">Mikropausen</div>
+        <input class="finput" type="number" inputmode="numeric" placeholder="${state.profile.breaksTarget}"
+          value="${wrk.breaks!==undefined?wrk.breaks:''}" onchange="setWork('breaks',this.value)" /></div>
+    </div>
+    <button class="btn ghost" onclick="addBreak()">+ Pause jetzt (${wrk.breaks||0}/${state.profile.breaksTarget})</button>
+  </div>`;
+
+  // Hike & Fly / Zone 2
+  h += `<div class="card"><div class="card-title">Hike & Fly / Zone 2</div>
+    <div class="card-sub">Aerobe Grundlage: locker, unterhalb der 1. Schwelle. Basis für Erholung & Ausdauer am Berg.</div>
+    <div class="row2">
+      <div class="field"><div class="flabel">Höhenmeter (m)</div>
+        <input class="finput" type="number" inputmode="numeric" placeholder="800" id="hfAscent" /></div>
+      <div class="field"><div class="flabel">Dauer (min)</div>
+        <input class="finput" type="number" inputmode="numeric" placeholder="90" id="hfDur" /></div>
+    </div>
+    <div class="field"><div class="flabel">Ort</div>
+      <input class="finput" type="text" placeholder="Grabs / Bargella" id="hfLoc" /></div>
+    <button class="btn sec" onclick="addHikeFly()">Ausflug speichern</button>`;
+
+  if (state.hikefly.length) {
+    h += `<div class="section-divider">Letzte Ausflüge</div>`;
+    state.hikefly.slice(-5).reverse().forEach((e,idx) => {
+      const realIdx = state.hikefly.length - 1 - idx;
+      h += `<div class="list-item">
+        <span>${e.date} · ${e.loc||"—"}</span>
+        <span style="font-family:'SF Mono',monospace">${e.ascent||0}m · ${e.dur||0}min
+        <button onclick="delHikeFly(${realIdx})" style="border:none;background:none;color:var(--red);font-size:0.9rem;cursor:pointer;padding-left:6px">×</button></span>
+      </div>`;
+    });
+    h += `<div class="hint" style="margin-top:6px">Diese Woche: <strong>${weeklyAscent()}m</strong></div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+
+function weeklyAscent() {
+  const now = new Date();
+  const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7)); monday.setHours(0,0,0,0);
+  return state.hikefly.filter(e => new Date(e.date) >= monday).reduce((s,e)=>s+(Number(e.ascent)||0),0);
+}
+
+// ═══ PROFIL ═══
+function renderProfile() {
+  const p = state.profile;
+  let h = `<div class="card"><div class="card-title">Deine Zielwerte</div>
+    <div class="card-sub">Änderungen passen alle Ziele automatisch an.</div>
+    <div class="row2">
+      <div class="field"><div class="flabel">Körpergewicht (kg)</div>
+        <input class="finput" type="number" step="0.5" value="${p.bodyweight}" onchange="setProfile('bodyweight',this.value)"/></div>
+      <div class="field"><div class="flabel">Protein (g/kg)</div>
+        <input class="finput" type="number" step="0.1" value="${p.proteinPerKg}" onchange="setProfile('proteinPerKg',this.value)"/></div>
+    </div>
+    <div class="hint" style="margin:2px 0 8px">→ Proteinziel: <strong>${proteinTarget()} g/Tag</strong> (~${proteinPerMeal()}g × 4 Mahlzeiten)</div>
+    <div class="row2">
+      <div class="field"><div class="flabel">Schlafziel (h)</div>
+        <input class="finput" type="number" step="0.5" value="${p.sleepTarget}" onchange="setProfile('sleepTarget',this.value)"/></div>
+      <div class="field"><div class="flabel">Kalorienziel</div>
+        <input class="finput" type="number" step="50" value="${p.calorieTarget}" onchange="setProfile('calorieTarget',this.value)"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><div class="flabel">Atmung (min/Tag)</div>
+        <input class="finput" type="number" value="${p.breathMinTarget}" onchange="setProfile('breathMinTarget',this.value)"/></div>
+      <div class="field"><div class="flabel">Zielarbeitszeit (h)</div>
+        <input class="finput" type="number" step="0.5" value="${p.workDayTarget}" onchange="setProfile('workDayTarget',this.value)"/></div>
+    </div>
+  </div>`;
+
+  // Daten
+  h += `<div class="card"><div class="card-title">Daten</div>
+    <button class="btn ghost" onclick="exportData()">Backup exportieren (JSON)</button>
+    <button class="btn ghost" onclick="document.getElementById('importFile').click()">Backup importieren</button>
+    <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(this)"/>
+    <div class="hint" style="margin-top:8px">Alle Daten liegen nur auf diesem Gerät (localStorage). Kein Server, keine Cloud.</div>
+  </div>`;
+
+  // Wissenschaft
+  h += `<div class="card"><div class="card-title">Wissenschaftliche Basis</div>
+    <div class="hint">
+      <p><strong>Protein 1.6–2.2 g/kg/Tag</strong>, ~0.4 g/kg auf ≥4 Mahlzeiten — ISSN Position Stand & Schoenfeld et al.</p>
+      <p style="margin-top:6px"><strong>Krafttraining 12–20 Sätze/Muskel/Woche</strong> mit abnehmendem Grenznutzen; Frequenz hilft v.a. der Maximalkraft — Pelland et al. 2025, Baz-Valle et al. 2022.</p>
+      <p style="margin-top:6px"><strong>Schlaf ≥7h</strong>: darunter (≥14 Tage) ~1.7× Verletzungsrisiko, weniger Kraft — Charest et al.; Rygielski et al. 2024.</p>
+      <p style="margin-top:6px"><strong>Resonanzatmung ~0.1 Hz</strong> (5–6/min) erhöht HRV & Vagustonus — Laborde et al. 2022 (Meta-Analyse, 223 Studien).</p>
+      <p style="margin-top:6px"><strong>Mikropausen</strong> steigern Vigor & senken Fatigue; längere Pausen wirken stärker — Albulescu et al. 2022 (Meta-Analyse).</p>
+      <p style="margin-top:6px"><strong>Alkohol</strong> senkt Muskelproteinsynthese um 24–37%, auch mit Protein — Parr et al. 2014; <0.5 g/kg meist unkritisch — Barnes 2014.</p>
+      <p style="margin-top:6px"><strong>Deload</strong> alle 4–6 Wochen, 5–7 Tage, Volumen/Intensität runter — Bell et al.; Rogerson et al. 2024.</p>
+      <p style="margin-top:6px"><strong>Zwei Einheiten/Tag</strong> steigern die Unterkörperkraft zusätzlich, Hypertrophie ähnlich — Corrêa et al. 2021.</p>
+    </div>
+  </div>`;
+
+  h += `<div class="hint" style="text-align:center;padding:6px">Balance v3 · Daten bleiben auf deinem Gerät</div>`;
+  return h;
+}
+
+// ═══ ACTIONS ═══
+function switchView(v) { window._showStats = false; currentView = v; stopBreath(); window.scrollTo(0,0); render(); }
+function showTraining() { window._showStats = false; render(); }
+function showStats() { window._showStats = true; render(); }
+function selectDay(i) { currentDay = i; render(); }
+function changeWeek(d) { state.week = Math.max(1, Math.min(6, state.week + d)); save(); render(); }
+function toggleMorning(key) { state.morningOpen[key] = !state.morningOpen[key]; save(); render(); }
+
+function logSet(key, setIdx, val, totalSets) {
+  if (!state.logs[key]) state.logs[key] = Array(totalSets).fill("");
+  state.logs[key][setIdx] = val === "" ? "" : Number(val);
+  save(); render();
+}
+function logWeight(key, val) { state.weights[key] = val === "" ? "" : Number(val); save(); }
+
+function setNutDate(d) { state._nutDate = d; render(); }
+function logNut(date, field, val, type) {
+  if (!state.nutrition[date]) state.nutrition[date] = {};
+  state.nutrition[date][field] = type === "number" ? (val === "" ? "" : Number(val)) : val;
+  save();
+}
+
+function setRec(field, val) {
+  const tk = todayKey();
+  if (!state.recovery[tk]) state.recovery[tk] = {};
+  state.recovery[tk][field] = val;
+  save(); render();
+}
+function setWork(field, val) {
+  const tk = todayKey();
+  if (!state.work[tk]) state.work[tk] = {};
+  state.work[tk][field] = val === "" ? "" : Number(val);
+  save();
+}
+function addBreak() {
+  const tk = todayKey();
+  if (!state.work[tk]) state.work[tk] = {};
+  state.work[tk].breaks = (Number(state.work[tk].breaks)||0) + 1;
+  save(); render();
+}
+
+function addHikeFly() {
+  const ascent = document.getElementById("hfAscent").value;
+  const dur = document.getElementById("hfDur").value;
+  const loc = document.getElementById("hfLoc").value;
+  if (!ascent && !dur && !loc) return;
+  state.hikefly.push({ date: todayKey(), ascent: Number(ascent)||0, dur: Number(dur)||0, loc });
+  save(); render();
+}
+function delHikeFly(idx) { state.hikefly.splice(idx,1); save(); render(); }
+
+function setProfile(field, val) { state.profile[field] = val === "" ? DEFAULT_PROFILE[field] : Number(val); save(); render(); }
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `balance-backup-${todayKey()}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      state = Object.assign(loadState(), imported);
+      state.profile = Object.assign({}, DEFAULT_PROFILE, imported.profile || {});
+      save(); render();
+      alert("Backup importiert.");
+    } catch(err) { alert("Import fehlgeschlagen: ungültige Datei."); }
+  };
+  reader.readAsText(file);
+}
+
+// ─── Resonanzatmung Engine ───
+let breathTimer = null, breathStart = null, breathPhaseT = null;
+function toggleBreath() { breathTimer ? stopBreath(true) : startBreath(); }
+function startBreath() {
+  breathStart = Date.now();
+  const circle = document.getElementById("breathCircle");
+  const btn = document.getElementById("breathBtn");
+  if (btn) btn.textContent = "Stoppen";
+  let inhale = true;
+  const cycle = () => {
+    if (!circle) return;
+    if (inhale) { circle.classList.add("inhale"); circle.textContent = "Einatmen"; }
+    else { circle.classList.remove("inhale"); circle.textContent = "Ausatmen"; }
+    inhale = !inhale;
+  };
+  cycle();
+  breathPhaseT = setInterval(cycle, 5500);
+  breathTimer = setInterval(() => {
+    const meta = document.getElementById("breathMeta");
+    if (meta) {
+      const elapsed = Math.floor((Date.now()-breathStart)/1000);
+      const m = Math.floor(elapsed/60), s = elapsed%60;
+      meta.innerHTML = `Sitzung läuft: <strong>${m}:${String(s).padStart(2,'0')}</strong> min`;
+    }
+  }, 1000);
+}
+function stopBreath(saveSession) {
+  if (breathTimer) { clearInterval(breathTimer); clearInterval(breathPhaseT); breathTimer = null; }
+  if (saveSession && breathStart) {
+    const mins = Math.round((Date.now()-breathStart)/60000 * 10)/10;
+    if (mins >= 0.5) {
+      const tk = todayKey();
+      if (!state.recovery[tk]) state.recovery[tk] = {};
+      state.recovery[tk].breathMin = Math.round(((state.recovery[tk].breathMin||0) + mins) * 10)/10;
+      save();
+    }
+  }
+  breathStart = null;
+  if (currentView === "recovery") render();
+}
+
+// ─── INIT ───
+render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
