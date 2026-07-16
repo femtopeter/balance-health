@@ -176,6 +176,13 @@
   }
   .nudge.good { background: #22C55E12; border-color: #22C55E33; }
   .nudge.info { background: #3B82F612; border-color: #3B82F633; }
+  .nudge .rec-title { font-weight: 700; margin-bottom: 2px; }
+  details.why { margin-top: 5px; }
+  details.why summary { font-size: 0.66rem; color: var(--dim); font-weight: 600; cursor: pointer; list-style: none; }
+  details.why summary::-webkit-details-marker { display: none; }
+  details.why summary::before { content: "▸ "; }
+  details.why[open] summary::before { content: "▾ "; }
+  details.why .why-body { font-size: 0.68rem; color: var(--dim); margin-top: 4px; line-height: 1.5; }
 
   .rest-msg { text-align: center; padding: 32px 20px; color: var(--dim); font-size: 0.85rem; }
   .rest-msg .emoji { font-size: 2rem; margin-bottom: 10px; }
@@ -635,52 +642,161 @@ function renderToday() {
   return h;
 }
 
-function renderNudges() {
-  const nudges = [];
+// ═══ EMPFEHLUNGS-ENGINE ═══
+// Regelbasiert & transparent — jede Empfehlung liefert ihr «Warum» mit.
+// Deckt die Steuer-Entscheidungen ab: hart/locker · morgens/abends ·
+// wie viel essen · Überlastung? · H&F-Fenster (Wetterdaten folgen).
+// Max. 3 Empfehlungen, nach Priorität. Kein Go/No-Go fürs Fliegen —
+// die Beurteilung der Flugbedingungen bleibt beim Piloten.
+
+function yesterdayKey() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return d.toISOString().split("T")[0];
+}
+function lastNRecovery(n) {
+  const r = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = d.toISOString().split("T")[0];
+    if (state.recovery[k]) r.push(state.recovery[k]);
+  }
+  return r;
+}
+
+function recommendations() {
   const tk = todayKey();
+  const p = state.profile;
+  const day = DAYS[currentDay];
   const last3 = lastNNutrition(3);
+  const rec3 = lastNRecovery(3);
   const nutToday = state.nutrition[tk] || {};
   const recToday = state.recovery[tk] || {};
-  const wrkToday = state.work[tk] || {};
-  const p = state.profile;
 
-  // Protein
-  const avgP = avgField(last3, "protein");
-  if (avgP !== null && avgP < proteinTarget() * 0.8)
-    nudges.push({t:`🥩 Protein-Schnitt ${Math.round(avgP)}g/Tag — Ziel ${proteinTarget()}g (${p.proteinPerKg} g/kg). Verteil ~${proteinPerMeal()}g auf 4 Mahlzeiten für maximale Muskelproteinsynthese.`, c:""});
+  // Signale sammeln
+  const isTrainingDay = day.exercises.length > 0 || !!day.noLog;
+  const sleep3 = avgField(last3, "sleep");
+  const sleepToday = Number(nutToday.sleep) || null;   // Schlaf letzter Nacht
+  const sleepRef = sleepToday !== null ? sleepToday : sleep3;
+  const sleepLow = sleepRef !== null && sleepRef < 7;
+  const protein3 = avgField(last3, "protein");
+  const cal3 = avgField(last3, "calories");
+  const alcYest = Number((state.nutrition[yesterdayKey()] || {}).alcohol) || 0;
+  const stress = recToday.stress || null;
+  const stress3 = avgField(rec3, "stress");
+  const mood3 = avgField(rec3, "mood");
+  const morningDone = day.exercises.some(ex =>
+    (state.logs[`W${state.week}-${day.name}-${ex.name}`] || []).some(v => v !== "" && v != null));
 
-  // Schlaf
-  const avgS = avgField(last3, "sleep");
-  if (avgS !== null && avgS < 7)
-    nudges.push({t:`😴 Schlaf ${avgS.toFixed(1)}h im 3-Tage-Schnitt. Unter 7h über ≥14 Tage ~1.7× höheres Verletzungsrisiko und weniger Kraft.`, c:""});
+  const R = [];
 
-  // Alkohol + Trainingstag morgen
-  if (nutToday.alcohol && nutToday.alcohol > 0) {
-    const tomorrow = DAYS[(currentDay+1)%7];
-    const hard = tomorrow.exercises.length > 0 || tomorrow.noLog;
-    nudges.push({t:`🍺 ${nutToday.alcohol} Drinks heute. Alkohol senkt die Muskelproteinsynthese um 24–37% nach dem Training${hard?` — morgen (${tomorrow.name}) steht ${tomorrow.type} an. Unter ~0.5 g/kg bleibt der Effekt gering.`:`. Unter ~0.5 g/kg bleibt der Effekt gering.`}`, c:"info"});
+  // ── Entscheidung: hart oder locker? ──
+  if (state.week === 6) {
+    R.push({ prio: 90, tone: "good", icon: "✅", title: "Deload — bewusst locker",
+      text: `Volumen & Intensität runter (weniger Wdh./Sätze), Technik halten. Danach startet der nächste Mesozyklus aufgeladen.`,
+      why: `Ein Deload alle 4–6 Wochen (5–7 Tage) baut angesammelte Ermüdung ab und verbessert die nachfolgende Anpassung (Bell 2025; Rogerson 2024).` });
+  } else if (stress !== null && stress >= 4 && sleepLow) {
+    R.push({ prio: 85, tone: "", icon: "🧘", title: "Heute Technik & Mobility statt Last",
+      text: `Stress ${stress}/5 und Schlaf ${sleepRef.toFixed(1)}h — beides limitiert heute. Bewegung ja, aber ohne schwere Reize. Plane 5 min Resonanzatmung ein.`,
+      why: `Schlafmangel plus hoher Stress senken Kraftleistung und Erholungskapazität gleichzeitig — der Trainingsreiz würde heute mehr Ermüdung als Anpassung erzeugen. Resonanzatmung (~5.5/min) hebt HRV & Vagustonus akut (Laborde 2022).` });
+  } else if (sleep3 !== null && sleep3 < 7 && isTrainingDay) {
+    R.push({ prio: 80, tone: "", icon: "😴", title: "Heute locker trainieren",
+      text: `Schlaf im 3-Tage-Schnitt ${sleep3.toFixed(1)}h. Volumen/Intensität heute ~20–30 % runter, keine harte Session.`,
+      why: `Unter 7h Schlaf über ≥14 Tage steigt das Verletzungsrisiko auf ~1.7× und die Kraftleistung sinkt (Charest 2022; Rygielski 2024). Ein lockerer Tag jetzt schützt den Rest der Woche.` });
   }
 
-  // Atmung noch nicht gemacht
-  if (!(recToday.breathMin >= p.breathMinTarget))
-    nudges.push({t:`🌬️ Noch keine ${p.breathMinTarget} min Resonanzatmung heute. ~5.5 Atemzüge/min erhöhen die Herzratenvariabilität und den Vagustonus. → Tab «Erholung»`, c:"info"});
+  // ── Entscheidung: Überlastung? ──
+  const orMarkers = [sleep3 !== null && sleep3 < 7, stress3 !== null && stress3 >= 4, mood3 !== null && mood3 <= 2.5].filter(Boolean).length;
+  if (orMarkers >= 2 && state.week < 6) {
+    R.push({ prio: 82, tone: "", icon: "⚠️", title: "Anzeichen von Überlastung",
+      text: `Mehrere Erholungsmarker sind seit Tagen unten (Schlaf/Stress/Stimmung). Nimm 1–2 bewusst lockere Tage — bessert es sich nicht, zieh den Deload vor.`,
+      why: `Die Kombination aus schlechtem Schlaf, hohem Stress und gedrückter Stimmung ist der praktikabelste Frühindikator für Overreaching — einzeln sagt jeder Marker wenig, zusammen viel. Deload-Prinzip: alle 4–6 Wochen bzw. bei Bedarf früher (Bell 2025).` });
+  } else if (state.week === 4) {
+    R.push({ prio: 40, tone: "info", icon: "📈", title: "Overreaching-Woche — Müdigkeit ist Plan",
+      text: `Diese Woche ist die geplante Überlastung des Mesozyklus. Sich müder zu fühlen ist hier normal; der Deload folgt in Woche 6.`,
+      why: `Funktionales Overreaching (kurz geplant über der Erholungskapazität) plus anschließender Deload erzeugt Superkompensation — problematisch wird Überlastung nur, wenn sie unkontrolliert andauert.` });
+  }
 
-  // Kein Nutrition-Log
-  if (!state.nutrition[tk])
-    nudges.push({t:`📝 Kein Ernährungs-Log heute. → Tab «Ernährung»`, c:"info"});
+  // ── Entscheidung: zweite Einheit heute? ──
+  if (morningDone && sleepLow && state.week !== 6) {
+    R.push({ prio: 75, tone: "", icon: "🌙", title: "Abend-Session streichen oder Mobility",
+      text: `Die Morgen-Einheit ist im Kasten. Bei ${sleepRef.toFixed(1)}h Schlaf bringt eine zweite harte Einheit heute mehr Ermüdung als Anpassung.`,
+      why: `Zwei Einheiten/Tag lohnen sich vor allem ausgeruht (Unterkörperkraft +16 % vs. +8 %, Corrêa 2021). Unter Schlafmangel kippt das Verhältnis — die Erholung zwischen den Einheiten fehlt.` });
+  }
 
-  // Überarbeitung
-  if (wrkToday.hours && wrkToday.hours > p.workDayTarget + 2)
-    nudges.push({t:`💼 ${wrkToday.hours}h Arbeit heute. Mikropausen (5–10 min) reduzieren Ermüdung messbar — plane bewusst Erholungsinseln ein.`, c:""});
+  // ── Alkohol gestern → Erwartung heute dämpfen ──
+  if (alcYest > 0 && isTrainingDay) {
+    R.push({ prio: 70, tone: "info", icon: "🍺", title: "Erwartungen heute dämpfen",
+      text: `${alcYest} Drink${alcYest > 1 ? "s" : ""} gestern — die Regeneration läuft verzögert. Heute solide arbeiten, keine PR-Jagd.`,
+      why: `Alkohol senkt die Muskelproteinsynthese um 24–37 %, auch mit Protein (Parr 2014). Unter ~0.5 g/kg bleibt der Effekt gering (Barnes 2014).` });
+  }
+  // Alkohol heute geloggt + morgen Training → abends sichtbar
+  const tomorrow = DAYS[(currentDay + 1) % 7];
+  if (Number(nutToday.alcohol) > 0 && (tomorrow.exercises.length > 0 || tomorrow.noLog)) {
+    R.push({ prio: 45, tone: "info", icon: "🍺", title: `Morgen steht ${tomorrow.type} an`,
+      text: `${nutToday.alcohol} Drink${nutToday.alcohol > 1 ? "s" : ""} heute. Wenn es dabei bleibt (~unter 0.5 g/kg), ist der Effekt gering — Wasser & Protein vor dem Schlafen helfen.`,
+      why: `Alkohol senkt die Muskelproteinsynthese dosisabhängig um bis zu 24–37 % (Parr 2014; Barnes 2014).` });
+  }
 
-  // Deload-Reminder
-  if (state.week === 6)
-    nudges.push({t:`✅ Deload-Woche: Volumen & Intensität bewusst runter (Wdh./Sätze reduzieren, Technik halten). Das lädt dich fürs nächste Mesozyklus neu auf.`, c:"good"});
+  // ── Entscheidung: wie viel essen? ──
+  if (protein3 !== null && protein3 < proteinTarget() * 0.8) {
+    R.push({ prio: 60, tone: "", icon: "🥩", title: "Protein limitiert die Erholung",
+      text: `Ø ${Math.round(protein3)}g/Tag — Ziel ${proteinTarget()}g. Verteil ~${proteinPerMeal()}g auf 4 Mahlzeiten und frühstücke proteinreich.`,
+      why: `1.6–2.2 g/kg/Tag maximieren die Muskelproteinsynthese (ISSN 2017; Schoenfeld & Aragon 2018); ein proteinreiches Frühstück schlägt spätes Nachladen (Yasuda 2020).` });
+  }
+  if (isTrainingDay && cal3 !== null && cal3 < p.calorieTarget * 0.85) {
+    R.push({ prio: 55, tone: "", icon: "🍽️", title: "Heute ans Kalorienziel essen",
+      text: `Ø ${Math.round(cal3)} kcal über 3 Tage — Ziel ${p.calorieTarget}. An Trainingstagen bremst das Defizit Aufbau und Trainingsqualität.`,
+      why: `Im Energiedefizit sinken Muskelproteinsynthese und Leistungsfähigkeit; harte Trainingstage sind der falsche Ort zum Sparen.` });
+  }
 
-  if (nudges.length === 0)
-    nudges.push({t:`✨ Alles im grünen Bereich. Weiter so.`, c:"good"});
+  // ── Grünes Licht: alle Marker gut ──
+  if (isTrainingDay && state.week !== 6 && sleepRef !== null && sleepRef >= 7
+      && (stress === null || stress <= 3) && alcYest === 0) {
+    R.push({ prio: 50, tone: "good", icon: "💪", title: "Grünes Licht: heute hart",
+      text: `Schlaf ${sleepRef.toFixed(1)}h${stress !== null ? `, Stress ${stress}/5` : ""} — gute Voraussetzungen für eine harte Session${state.week === 4 ? " (Overreaching-Woche: bewusst drüber)" : ""}.`,
+      why: `Harte Reize erzeugen die beste Anpassung, wenn Schlaf und Stress im Zielbereich liegen — genau dann verträgt der Körper Volumen im oberen Korridor (12–20 Sätze/Muskel/Woche).` });
+  }
 
-  return nudges.map(n => `<div class="nudge ${n.c}">${n.t}</div>`).join("");
+  // ── H&F-Fenster (AKTIV-Tag, Erholung ok) ──
+  if (day.type === "AKTIV" && !sleepLow && (stress === null || stress <= 3)) {
+    R.push({ prio: 62, tone: "good", icon: "⛰️", title: "Erholung spricht für eine Tour",
+      text: `Erholungsmarker ok — wenn Wetter & Kalender passen, ist heute ein gutes Hike-&-Fly-Fenster. Die Beurteilung der Flugbedingungen bleibt bei dir.`,
+      why: `Aerobe Grundlagenarbeit (locker, Zone 2) stärkt Erholung und Herz-Kreislauf, ohne die Kraftadaption zu stören. Wetterdaten direkt in der App folgen als Nächstes.` });
+  }
+
+  // ── Zu wenig Daten für Empfehlungen ──
+  if (R.length === 0 && last3.length === 0 && rec3.length === 0) {
+    R.push({ prio: 20, tone: "info", icon: "📊", title: "Die Engine braucht Daten",
+      text: `Logge Schlaf, Protein und Stress — daraus entstehen hier konkrete Tagesempfehlungen.`,
+      why: `Die Empfehlungen sind regelbasiert: ohne Schlaf-, Ernährungs- und Stressdaten kann keine Regel greifen.` });
+  }
+
+  R.sort((a, b) => b.prio - a.prio);
+  return R.slice(0, 3);
+}
+
+function renderNudges() {
+  const recs = recommendations();
+  let h = recs.map(r => `<div class="nudge ${r.tone}">
+    <div class="rec-title">${r.icon} ${r.title}</div>
+    <div>${r.text}</div>
+    <details class="why"><summary>Warum?</summary><div class="why-body">${r.why}</div></details>
+  </div>`).join("");
+
+  if (recs.length === 0)
+    h += `<div class="nudge good">✨ Alles im grünen Bereich. Weiter so.</div>`;
+
+  // Kurz-Reminder (keine Empfehlungen, nur offene Punkte)
+  const tk = todayKey(), p = state.profile;
+  const recToday = state.recovery[tk] || {}, wrkToday = state.work[tk] || {};
+  const rem = [];
+  if (!((recToday.breathMin || 0) >= p.breathMinTarget)) rem.push(`🌬️ Atmung ${recToday.breathMin || 0}/${p.breathMinTarget} min`);
+  if (!state.nutrition[tk]) rem.push(`📝 Ernährungs-Log offen`);
+  if (wrkToday.hours && wrkToday.hours > p.workDayTarget + 2) rem.push(`💼 ${wrkToday.hours}h Arbeit — Pausen einplanen`);
+  if (rem.length)
+    h += `<div class="nudge info" style="font-size:0.7rem">${rem.join(" · ")}</div>`;
+
+  return h;
 }
 
 // ═══ TRAINING ═══

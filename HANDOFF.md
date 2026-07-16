@@ -1,7 +1,8 @@
 # Balance — Handoff & Roadmap
 
-> **Für die nächste Session:** Lies dieses Dokument, dann starte mit **Prio 1 (Engine)**.
+> **Für die nächste Session:** Lies dieses Dokument, dann starte mit **Prio 2 (Wetter)**.
 > Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
+> Prio 1 (Empfehlungs-Engine) ist umgesetzt und deployed (Juli 2026).
 
 ---
 
@@ -48,7 +49,8 @@ Alle Zielwerte leiten sich aus `profile` ab (Proteinziel = `bodyweight × protei
 |---|---|
 | `loadState()` | State laden + v2→v3 Migration |
 | `pillarScores()` | 0–100 je Säule → Balance-Ring auf „Heute" |
-| `renderNudges()` | **Hier setzt die Engine an** (aktuell simple Regeln) |
+| `recommendations()` | **Empfehlungs-Engine**: regelbasiert, priorisiert, max. 3 Empfehlungen mit «Warum» |
+| `renderNudges()` | Rendert Engine-Output + kompakte Reminder-Zeile auf «Heute» |
 | `sparkline(wKey)` | Inline-SVG-Trend, bester Satz je Woche |
 | `startBreath()` / `stopBreath()` | Resonanzatmung 5.5/min |
 | `exportData()` / `importData()` | JSON-Backup |
@@ -57,9 +59,11 @@ Alle Zielwerte leiten sich aus `profile` ab (Proteinziel = `bodyweight × protei
 
 ## 3. Roadmap — in dieser Reihenfolge (vom Nutzer bestätigt)
 
-### ▶ Prio 1 — Empfehlungs-Engine  ← **HIER STARTEN**
+### ✅ Prio 1 — Empfehlungs-Engine  — **ERLEDIGT (Juli 2026)**
 
-**Ziel:** Aus den bereits geloggten Daten konkrete Tagesempfehlungen ableiten. Ersetzt/erweitert `renderNudges()`.
+Umgesetzt als `recommendations()` in `index.html` (regelbasiert, priorisiert, max. 3, jede Empfehlung mit aufklappbarem «Warum» inkl. Quellen). Abgedeckt: hart/locker (Schlaf, Stress, Deload), Abend-Session streichen (morgens erledigt + Schlafmangel), Überlastungs-Marker (≥2 von Schlaf/Stress/Stimmung über 3 Tage), Alkohol gestern/heute, Protein- & Kalorien-Lücke, «Grünes Licht»-Freigabe, H&F-Fenster am AKTIV-Tag (nur Erholungssicht, **kein** Flug-Verdikt), Daten-fehlen-Hinweis. Woche 4 wird als geplantes Overreaching erklärt. SW-Cache auf `balance-v4`. Getestet über localhost mit 7 Szenarien.
+
+**Ursprüngliches Ziel (Referenz):** Aus den bereits geloggten Daten konkrete Tagesempfehlungen ableiten. Ersetzt/erweitert `renderNudges()`.
 
 **Warum zuerst:** Braucht keinen neuen Datenzugang, liefert sofort Wert, und wird in *jedem* Szenario gebraucht — egal woher die Daten später kommen. Erst Infrastruktur bauen und dann merken, dass die Empfehlungen nicht taugen, wäre die teure Reihenfolge.
 
