@@ -184,6 +184,15 @@
   details.why[open] summary::before { content: "▾ "; }
   details.why .why-body { font-size: 0.68rem; color: var(--dim); margin-top: 4px; line-height: 1.5; }
 
+  /* Wetter */
+  .wx-grid {
+    display: grid; grid-template-columns: 32px 30px 1fr 40px 1fr 34px 34px;
+    gap: 3px 4px; font-family: 'SF Mono','Menlo',monospace; font-size: 0.62rem; align-items: center;
+  }
+  .wx-grid .wx-head { color: var(--dim); font-weight: 600; font-size: 0.54rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .wx-dir { display: inline-block; font-size: 0.7rem; }
+  .wx-meta { font-size: 0.6rem; color: var(--dim); margin-top: 6px; }
+
   .rest-msg { text-align: center; padding: 32px 20px; color: var(--dim); font-size: 0.85rem; }
   .rest-msg .emoji { font-size: 2rem; margin-bottom: 10px; }
 
@@ -421,6 +430,12 @@ const DEFAULT_PROFILE = {
   breaksTarget: 4,      // Mikropausen/Tag
 };
 
+// Wetter-Orte (Koordinaten von Nassim, Google Maps). Bargella folgt,
+// sobald die Koordinaten vorliegen — im Profil-Tab editierbar.
+const DEFAULT_LOCATIONS = [
+  { name: "Grabs", lat: 47.1666, lon: 9.4242 },
+];
+
 function loadState() {
   const raw = localStorage.getItem("training-v3");
   if (raw) {
@@ -430,6 +445,7 @@ function loadState() {
     s.work = s.work || {};
     s.hikefly = s.hikefly || [];
     s.weights = s.weights || {};
+    if (!s.locations || !s.locations.length) s.locations = JSON.parse(JSON.stringify(DEFAULT_LOCATIONS));
     return s;
   }
   // Migration von v2
@@ -439,11 +455,13 @@ function loadState() {
       version: 3, week: old.week || 1, logs: old.logs || {},
       weights: {}, nutrition: old.nutrition || {}, recovery: {}, work: {},
       hikefly: [], morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
+      locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
     };
   }
   return {
     version: 3, week: 1, logs: {}, weights: {}, nutrition: {},
     recovery: {}, work: {}, hikefly: [], morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
+    locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
   };
 }
 
@@ -473,6 +491,7 @@ function render() {
   document.getElementById("app-sub").textContent = nav.sub;
   renderWeekSelector();
   renderContent();
+  if (currentView === "today") refreshWeather(); // async, füllt #weatherBody nach
 }
 
 function renderNav() {
@@ -628,6 +647,9 @@ function renderToday() {
       <div class="tsub">Resonanzatmung</div>
     </div>
   </div>`;
+
+  // Wetter (Open-Meteo) — Rohdaten, bewusst kein Flug-Verdikt
+  h += renderWeatherCard();
 
   // Wochen Hike & Fly Höhenmeter
   const weekAscent = weeklyAscent();
@@ -798,6 +820,89 @@ function renderNudges() {
 
   return h;
 }
+
+// ═══ WETTER (Open-Meteo, ohne Auth/CORS-frei) ═══
+// Rohdaten für die eigene Beurteilung — bewusst KEIN Go/No-Go fürs Fliegen:
+// Gleitschirm ist sicherheitsrelevant, die Einschätzung bleibt beim Piloten.
+const WX_CACHE_MIN = 30;
+
+function wxCompass(d) { return ["N","NO","O","SO","S","SW","W","NW"][Math.round(d / 45) % 8]; }
+function wxArrow(d) { return `<span class="wx-dir" style="transform:rotate(${Math.round((d + 180) % 360)}deg)">↑</span>`; }
+
+async function fetchWeather(loc) {
+  const key = `wx-${loc.lat}-${loc.lon}`;
+  const cached = JSON.parse(localStorage.getItem(key) || "null");
+  if (cached && Date.now() - cached.ts < WX_CACHE_MIN * 60000) return cached;
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    `?latitude=${loc.lat}&longitude=${loc.lon}` +
+    "&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,wind_speed_850hPa,wind_direction_850hPa" +
+    "&forecast_days=2&timezone=auto&wind_speed_unit=kmh";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const entry = { ts: Date.now(), data };
+    localStorage.setItem(key, JSON.stringify(entry));
+    return entry;
+  } catch (err) {
+    if (cached) return cached; // offline: alte Daten mit Zeitstempel statt nichts
+    throw err;
+  }
+}
+
+function renderWeatherCard() {
+  const locs = state.locations || [];
+  if (!locs.length) return "";
+  const sel = Math.min(state._wxLoc || 0, locs.length - 1);
+  let h = `<div class="card"><div class="card-title">Wetter — ${locs[sel].name}</div>`;
+  if (locs.length > 1) {
+    h += `<div class="seg" style="margin-bottom:8px">${locs.map((l, i) =>
+      `<button class="${i === sel ? 'active' : ''}" onclick="setWxLoc(${i})">${l.name}</button>`).join("")}</div>`;
+  }
+  h += `<div id="weatherBody"><div class="hint">Lade Wetterdaten…</div></div>
+    <div class="wx-meta">Rohdaten zur eigenen Beurteilung — kein Flugwetter-Urteil. Quelle: Open-Meteo.</div>
+  </div>`;
+  return h;
+}
+
+async function refreshWeather() {
+  if (!document.getElementById("weatherBody")) return;
+  const locs = state.locations || [];
+  if (!locs.length) return;
+  const loc = locs[Math.min(state._wxLoc || 0, locs.length - 1)];
+  try {
+    const { ts, data } = await fetchWeather(loc);
+    const el = document.getElementById("weatherBody"); // nach await neu holen (Re-Render macht Refs stale)
+    if (!el) return;
+    const hh = data.hourly;
+    let start = hh.time.findIndex(t => new Date(t) >= new Date(Date.now() - 3599e3));
+    if (start < 0) start = 0;
+    const cell = (v, sfx = "") => (v == null ? "–" : Math.round(v) + sfx);
+    let g = `<div class="wx-grid">
+      <div class="wx-head">Zeit</div><div class="wx-head">T</div><div class="wx-head">Wind 10m</div>
+      <div class="wx-head">Böen</div><div class="wx-head">~1500m</div><div class="wx-head">Regen</div><div class="wx-head">Wolken</div>`;
+    for (let i = start; i < Math.min(start + 10, hh.time.length); i++) {
+      const t = new Date(hh.time[i]);
+      const d10 = hh.wind_direction_10m[i];
+      const w850 = (hh.wind_speed_850hPa || [])[i], d850 = (hh.wind_direction_850hPa || [])[i];
+      const prec = hh.precipitation[i];
+      g += `<div>${String(t.getHours()).padStart(2, "0")}h</div>
+        <div>${cell(hh.temperature_2m[i], "°")}</div>
+        <div>${d10 == null ? "" : wxArrow(d10) + " " + wxCompass(d10)} ${cell(hh.wind_speed_10m[i])}</div>
+        <div>${cell(hh.wind_gusts_10m[i])}</div>
+        <div>${d850 == null || w850 == null ? "–" : wxArrow(d850) + " " + wxCompass(d850) + " " + Math.round(w850)}</div>
+        <div>${prec == null ? "–" : (prec > 0 ? prec.toFixed(1) : "0")}</div>
+        <div>${cell(hh.cloud_cover[i], "%")}</div>`;
+    }
+    g += `</div><div class="wx-meta">Wind/Böen in km/h · Regen in mm/h · ~1500m = 850 hPa · Stand ${new Date(ts).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}</div>`;
+    el.innerHTML = g;
+  } catch (err) {
+    const el = document.getElementById("weatherBody");
+    if (el) el.innerHTML = `<div class="hint">Wetterdaten nicht erreichbar (offline?). Später erneut versuchen.</div>`;
+  }
+}
+
+function setWxLoc(i) { state._wxLoc = i; save(); render(); }
 
 // ═══ TRAINING ═══
 function renderPlan() {
@@ -1117,6 +1222,23 @@ function renderProfile() {
     </div>
   </div>`;
 
+  // Wetter-Orte
+  h += `<div class="card"><div class="card-title">Wetter-Orte</div>
+    <div class="card-sub">Koordinaten dezimal (Google Maps: Rechtsklick auf den Punkt → Koordinaten kopieren).</div>`;
+  (state.locations || []).forEach((l, i) => {
+    h += `<div class="row2" style="margin-bottom:6px;align-items:flex-end">
+      <div class="field" style="flex:1.3;margin-bottom:0"><div class="flabel">Name</div>
+        <input class="finput" type="text" value="${l.name}" onchange="setLocField(${i},'name',this.value)"/></div>
+      <div class="field" style="margin-bottom:0"><div class="flabel">Lat</div>
+        <input class="finput" type="number" step="0.0001" value="${l.lat}" onchange="setLocField(${i},'lat',this.value)"/></div>
+      <div class="field" style="margin-bottom:0"><div class="flabel">Lon</div>
+        <input class="finput" type="number" step="0.0001" value="${l.lon}" onchange="setLocField(${i},'lon',this.value)"/></div>
+      ${state.locations.length > 1 ? `<button onclick="delLocation(${i})"
+        style="flex:0 0 26px;border:none;background:none;color:var(--red);font-size:1rem;cursor:pointer;padding:8px 0">×</button>` : ``}
+    </div>`;
+  });
+  h += `<button class="btn ghost" onclick="addLocation()">+ Ort hinzufügen</button></div>`;
+
   // Daten
   h += `<div class="card"><div class="card-title">Daten</div>
     <button class="btn ghost" onclick="exportData()">Backup exportieren (JSON)</button>
@@ -1195,6 +1317,18 @@ function addHikeFly() {
 function delHikeFly(idx) { state.hikefly.splice(idx,1); save(); render(); }
 
 function setProfile(field, val) { state.profile[field] = val === "" ? DEFAULT_PROFILE[field] : Number(val); save(); render(); }
+
+function setLocField(i, field, val) {
+  const l = state.locations[i]; if (!l) return;
+  l[field] = field === "name" ? val : (Number(val) || 0);
+  save(); render();
+}
+function addLocation() { state.locations.push({ name: "Neuer Ort", lat: 47.17, lon: 9.42 }); save(); render(); }
+function delLocation(i) {
+  state.locations.splice(i, 1);
+  if ((state._wxLoc || 0) >= state.locations.length) state._wxLoc = 0;
+  save(); render();
+}
 
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});

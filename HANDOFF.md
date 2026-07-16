@@ -1,8 +1,10 @@
 # Balance — Handoff & Roadmap
 
-> **Für die nächste Session:** Lies dieses Dokument, dann starte mit **Prio 2 (Wetter)**.
+> **Für die nächste Session:** Lies dieses Dokument, dann starte mit **Prio 3 (Outlook Kalender)** —
+> vorher die zwei Hürden in Abschnitt 3 mit Nassim klären (Arbeitsaccount, Tenant-Consent).
 > Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
-> Prio 1 (Empfehlungs-Engine) ist umgesetzt und deployed (Juli 2026).
+> Prio 1 (Engine) und Prio 2 (Wetter) sind umgesetzt und deployed (Juli 2026).
+> **Offen:** Bargella-Koordinaten (Nassim hatte zweimal Grabs kopiert) — im Profil-Tab nachtragbar.
 
 ---
 
@@ -92,13 +94,17 @@ Umgesetzt als `recommendations()` in `index.html` (regelbasiert, priorisiert, ma
 
 ---
 
-### ▶ Prio 2 — Wetter
+### ✅ Prio 2 — Wetter — **ERLEDIGT (Juli 2026)**
 
-**Bestes Verhältnis von Wert zu Aufwand.** Keine Auth, gratis, CORS-fähig.
+Umgesetzt mit [Open-Meteo](https://open-meteo.com/) (keine Auth, CORS-frei): Wetter-Karte auf «Heute» mit
+10-Stunden-Vorschau ab jetzt — Temperatur, Wind 10 m (Richtung + km/h), Böen, Höhenwind ~1500 m (850 hPa),
+Regen (mm/h), Bewölkung. 30-min-Cache in localStorage (separate `wx-*`-Keys, nicht im Backup), Offline-Fallback
+auf letzte Daten mit Zeitstempel. Orte editierbar im Profil-Tab (`state.locations`), Umschalt-Buttons bei >1 Ort.
+Funktionen: `fetchWeather()`, `refreshWeather()`, `renderWeatherCard()`. SW-Cache auf `balance-v5`.
 
-- **API:** [Open-Meteo](https://open-meteo.com/) (keine Registrierung) oder MeteoSchweiz.
-- **Orte:** Grabs (≈47.18 N, 9.44 E) und Bargella/Bargälla — Koordinaten mit dem Nutzer verifizieren.
-- **Relevante Felder:** Wind (Boden + Höhe), Böen, Niederschlag, Bewölkung, Temperatur.
+- **Grabs:** 47.1666 N, 9.4242 E (von Nassim bestätigt, Google Maps).
+- **Bargella: Koordinaten stehen noch aus** — er hatte versehentlich zweimal Grabs kopiert. Im Profil-Tab
+  als Ort ergänzen, sobald vorhanden.
 - **Zweck:** Zusammen mit dem Kalender ist das Nassims wörtliche Entscheidungsregel: *„wenn es das Wetter und die Meetings zulassen"*.
 
 > ⚠️ **Sicherheitskritisch:** Die App darf **kein Go/No-Go fürs Fliegen** aussprechen. Gleitschirm ist sicherheitsrelevant; eine Fehlentscheidung kann tödlich sein. Nur **rohe Bedingungen anzeigen**, die Beurteilung bleibt beim Piloten. Keine „heute fliegbar"-Verdikte.
@@ -154,7 +160,7 @@ Nassim, R&D Scientist, arbeitet 40–50 h/Woche, kocht möglichst selbst. **Trai
 
 Equipment: Pull-Up-Bar, Ringe, 2×14 kg Dumbbells (Upgrade auf verstellbare bis 32 kg geplant). Ziel: Plateau durchbrechen via Periodisierung + progressive Überlastung.
 
-**Kommuniziert auf Deutsch. Will Begründungen, keine Behauptungen.** Offen für Effizienz-Vorschläge. Hat einen **Beelink Mini-PC mit Tailscale** — die Option für ein späteres Backend, falls echte Automatik gewünscht wird.
+**Kommuniziert auf Deutsch. Will Begründungen, keine Behauptungen.** Offen für Effizienz-Vorschläge. Ein **Beelink Mini-PC** ist **noch nicht vorhanden** — die Anschaffung ist für die Zukunft geplant (Stand Juli 2026). Bis dahin: kein Backend möglich, alles bleibt client-seitig.
 
 ---
 
