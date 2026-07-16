@@ -491,7 +491,7 @@ function render() {
   document.getElementById("app-sub").textContent = nav.sub;
   renderWeekSelector();
   renderContent();
-  if (currentView === "today") refreshWeather(); // async, füllt #weatherBody nach
+  if (currentView === "today") { refreshWeather(); refreshCalendar(); } // async, füllen ihre Karten nach
 }
 
 function renderNav() {
@@ -651,6 +651,9 @@ function renderToday() {
   // Wetter (Open-Meteo) — Rohdaten, bewusst kein Flug-Verdikt
   h += renderWeatherCard();
 
+  // Outlook Kalender — nur Frei/Belegt
+  h += renderCalendarCard();
+
   // Wochen Hike & Fly Höhenmeter
   const weekAscent = weeklyAscent();
   h += `<div class="card" onclick="switchView('recovery')">
@@ -786,6 +789,17 @@ function recommendations() {
       why: `Aerobe Grundlagenarbeit (locker, Zone 2) stärkt Erholung und Herz-Kreislauf, ohne die Kraftadaption zu stören. Wetterdaten direkt in der App folgen als Nächstes.` });
   }
 
+  // ── Kalender-Fenster (falls verbunden & Daten von heute) ──
+  const cal = JSON.parse(localStorage.getItem("cal-cache") || "null");
+  if (cal && cal.date === tk && Date.now() - cal.ts < 2 * 3600e3) {
+    const win = calFreeWindows(cal.busy, 8 * 60, 19 * 60).sort((a, b) => (b.e - b.s) - (a.e - a.s))[0];
+    if (win && win.e - win.s >= 180) {
+      R.push({ prio: 58, tone: "info", icon: "🗓️", title: `Freies Fenster: ${calFmt(win.s)}–${calFmt(win.e)}`,
+        text: `${Math.round((win.e - win.s) / 6) / 10}h ohne Termine — genug für Hike & Fly oder eine lange Einheit, wenn die Bedingungen passen (Wetter-Rohdaten unten, Beurteilung bei dir).`,
+        why: `Deine Entscheidungsregel: «wenn Wetter und Meetings es zulassen». Der Kalender liefert die Meeting-Seite (nur Frei/Belegt); das Flugurteil bleibt beim Piloten.` });
+    }
+  }
+
   // ── Zu wenig Daten für Empfehlungen ──
   if (R.length === 0 && last3.length === 0 && rec3.length === 0) {
     R.push({ prio: 20, tone: "info", icon: "📊", title: "Die Engine braucht Daten",
@@ -903,6 +917,165 @@ async function refreshWeather() {
 }
 
 function setWxLoc(i) { state._wxLoc = i; save(); render(); }
+
+// ═══ OUTLOOK KALENDER (Microsoft Graph, Auth-Code + PKCE) ═══
+// Bewusst NUR Frei/Belegt: $select=start,end,showAs — keine Betreffzeilen,
+// keine Inhalte (Arbeitsaccount!). Config, Tokens & Cache liegen in eigenen
+// localStorage-Keys, nicht im State → landen nie im JSON-Backup.
+const CAL_SCOPE = "openid profile offline_access https://graph.microsoft.com/Calendars.Read";
+const CAL_TENANT_DEFAULT = "organizations";
+
+function calCfg() { return JSON.parse(localStorage.getItem("cal-cfg") || "{}"); }
+function calSetCfg(field, val) {
+  const c = calCfg(); c[field] = val.trim();
+  localStorage.setItem("cal-cfg", JSON.stringify(c)); render();
+}
+function calTok() { return JSON.parse(localStorage.getItem("cal-tok") || "null"); }
+function calRedirectUri() { return location.origin + location.pathname; }
+function b64url(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function calLogin() {
+  const cfg = calCfg(); if (!cfg.clientId) return;
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  sessionStorage.setItem("cal-verifier", verifier);
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const p = new URLSearchParams({
+    client_id: cfg.clientId, response_type: "code", redirect_uri: calRedirectUri(),
+    response_mode: "query", scope: CAL_SCOPE,
+    code_challenge: challenge, code_challenge_method: "S256",
+  });
+  location.href = `https://login.microsoftonline.com/${cfg.tenant || CAL_TENANT_DEFAULT}/oauth2/v2.0/authorize?${p}`;
+}
+
+async function calTokenRequest(body) {
+  const cfg = calCfg();
+  const res = await fetch(`https://login.microsoftonline.com/${cfg.tenant || CAL_TENANT_DEFAULT}/oauth2/v2.0/token`, {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(Object.assign({ client_id: cfg.clientId, scope: CAL_SCOPE }, body)),
+  });
+  if (!res.ok) throw new Error("Token: HTTP " + res.status);
+  const t = await res.json();
+  localStorage.setItem("cal-tok", JSON.stringify({
+    access: t.access_token,
+    refresh: t.refresh_token || (calTok() || {}).refresh,
+    exp: Date.now() + (t.expires_in - 60) * 1000,
+  }));
+  return t.access_token;
+}
+
+async function calHandleRedirect() {
+  const code = new URLSearchParams(location.search).get("code");
+  const verifier = sessionStorage.getItem("cal-verifier");
+  if (!code || !verifier) return;
+  history.replaceState(null, "", location.pathname); // Code sofort aus der URL entfernen
+  sessionStorage.removeItem("cal-verifier");
+  try {
+    await calTokenRequest({ grant_type: "authorization_code", code, redirect_uri: calRedirectUri(), code_verifier: verifier });
+  } catch (e) { alert("Kalender-Anmeldung fehlgeschlagen: " + e.message); }
+  render();
+}
+
+async function calAccessToken() {
+  const tok = calTok(); if (!tok) return null;
+  if (Date.now() < tok.exp) return tok.access;
+  if (!tok.refresh) return null;
+  try { return await calTokenRequest({ grant_type: "refresh_token", refresh_token: tok.refresh }); }
+  catch (e) { return null; } // Session abgelaufen → Neu-Anmelden anbieten
+}
+
+function calDisconnect() {
+  localStorage.removeItem("cal-tok"); localStorage.removeItem("cal-cache"); render();
+}
+
+// Zeitblöcke als Minuten seit Mitternacht (lokal)
+function calMergeBusy(blocks) {
+  const out = [];
+  blocks.slice().sort((a, b) => a.s - b.s).forEach(cur => {
+    const last = out[out.length - 1];
+    if (last && cur.s <= last.e) last.e = Math.max(last.e, cur.e);
+    else out.push({ s: cur.s, e: cur.e });
+  });
+  return out;
+}
+function calFreeWindows(busy, from, to) {
+  const free = []; let cursor = from;
+  calMergeBusy(busy).forEach(b => {
+    const s = Math.max(b.s, from), e = Math.min(b.e, to);
+    if (e <= s) return;
+    if (s - cursor >= 30) free.push({ s: cursor, e: s });
+    cursor = Math.max(cursor, e);
+  });
+  if (to - cursor >= 30) free.push({ s: cursor, e: to });
+  return free;
+}
+function calFmt(m) { return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }
+
+async function fetchCalendar() {
+  const cached = JSON.parse(localStorage.getItem("cal-cache") || "null");
+  if (cached && cached.date === todayKey() && Date.now() - cached.ts < 15 * 60000) return cached;
+  const token = await calAccessToken();
+  if (!token) return null;
+  const d = todayKey();
+  const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${d}T00:00:00&endDateTime=${d}T23:59:59&$select=start,end,showAs,isAllDay&$top=50`;
+  const res = await fetch(url, { headers: { Authorization: "Bearer " + token, Prefer: 'outlook.timezone="Europe/Zurich"' } });
+  if (!res.ok) throw new Error("Graph: HTTP " + res.status);
+  const data = await res.json();
+  const toMin = t => { const s = t.split("T")[1]; return parseInt(s.slice(0, 2)) * 60 + parseInt(s.slice(3, 5)); };
+  const busy = (data.value || [])
+    .filter(ev => !ev.isAllDay && ev.showAs !== "free")
+    .map(ev => ({ s: toMin(ev.start.dateTime), e: toMin(ev.end.dateTime) }));
+  const entry = { date: d, ts: Date.now(), busy: calMergeBusy(busy) };
+  localStorage.setItem("cal-cache", JSON.stringify(entry));
+  return entry;
+}
+
+function renderCalendarCard() {
+  if (!calCfg().clientId) return ""; // Einrichtung läuft über den Profil-Tab
+  let h = `<div class="card"><div class="card-title">Kalender heute</div>`;
+  if (!calTok()) {
+    return h + `<div class="hint" style="margin-bottom:4px">Nur Frei/Belegt wird gelesen — keine Betreffzeilen, keine Inhalte.</div>
+      <button class="btn" onclick="calLogin()">Mit Microsoft anmelden</button></div>`;
+  }
+  return h + `<div id="calBody"><div class="hint">Lade Kalender…</div></div></div>`;
+}
+
+function calTimelineHtml(entry) {
+  const FROM = 6 * 60, TO = 21 * 60, span = TO - FROM;
+  const busy = entry.busy.filter(b => b.e > FROM && b.s < TO);
+  const free = calFreeWindows(entry.busy, FROM, TO);
+  let h = `<div style="position:relative;height:14px;border-radius:7px;background:#22C55E33;overflow:hidden;margin:6px 0 2px">`;
+  busy.forEach(b => {
+    const l = (Math.max(b.s, FROM) - FROM) / span * 100;
+    const w = (Math.min(b.e, TO) - Math.max(b.s, FROM)) / span * 100;
+    h += `<div style="position:absolute;left:${l}%;width:${w}%;top:0;bottom:0;background:var(--primary)"></div>`;
+  });
+  h += `</div><div style="display:flex;justify-content:space-between;font-size:0.56rem;color:var(--dim);font-family:'SF Mono',monospace">
+    <span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span></div>`;
+  if (busy.length === 0) h += `<div class="hint" style="margin-top:6px">Keine Termine 06–21 Uhr — der Tag gehört dir.</div>`;
+  else if (free.length) h += `<div class="hint" style="margin-top:6px">Frei: ${free.map(f => `${calFmt(f.s)}–${calFmt(f.e)}`).join(" · ")}</div>`;
+  h += `<div class="wx-meta">Nur Frei/Belegt · Stand ${new Date(entry.ts).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}</div>`;
+  return h;
+}
+
+async function refreshCalendar() {
+  if (!document.getElementById("calBody")) return;
+  try {
+    const entry = await fetchCalendar();
+    const el = document.getElementById("calBody"); // nach await neu holen
+    if (!el) return;
+    if (!entry) {
+      el.innerHTML = `<div class="hint" style="margin-bottom:4px">Anmeldung abgelaufen.</div>
+        <button class="btn" onclick="calLogin()">Neu anmelden</button>`;
+      return;
+    }
+    el.innerHTML = calTimelineHtml(entry);
+  } catch (e) {
+    const el = document.getElementById("calBody");
+    if (el) el.innerHTML = `<div class="hint">Kalender nicht erreichbar (${e.message}).</div>`;
+  }
+}
 
 // ═══ TRAINING ═══
 function renderPlan() {
@@ -1239,6 +1412,32 @@ function renderProfile() {
   });
   h += `<button class="btn ghost" onclick="addLocation()">+ Ort hinzufügen</button></div>`;
 
+  // Outlook Kalender
+  const cCfg = calCfg(), cConn = !!calTok();
+  h += `<div class="card"><div class="card-title">Outlook Kalender</div>
+    <div class="card-sub">Nur Frei/Belegt wird gelesen — keine Betreffzeilen, keine Inhalte. Tokens bleiben auf diesem Gerät und landen nicht im Backup.</div>
+    <div class="field"><div class="flabel">Client-ID (Azure App-Registrierung)</div>
+      <input class="finput" type="text" placeholder="00000000-0000-0000-0000-000000000000"
+        value="${cCfg.clientId || ""}" onchange="calSetCfg('clientId',this.value)"/></div>
+    <div class="field"><div class="flabel">Tenant (leer lassen = organizations)</div>
+      <input class="finput" type="text" placeholder="organizations"
+        value="${cCfg.tenant || ""}" onchange="calSetCfg('tenant',this.value)"/></div>`;
+  if (cCfg.clientId) {
+    h += cConn
+      ? `<div class="hint" style="margin-bottom:4px">✅ Verbunden — Karte «Kalender heute» auf dem Heute-Tab.</div>
+         <button class="btn ghost" onclick="calDisconnect()">Trennen</button>`
+      : `<button class="btn" onclick="calLogin()">Mit Microsoft anmelden</button>`;
+  }
+  h += `<details class="why" style="margin-top:8px"><summary>Einrichtung (einmalig, ~5 min)</summary><div class="why-body">
+    1. <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → «App registrations» → «New registration».<br>
+    2. Name frei wählbar · Konten: «Accounts in this organizational directory only».<br>
+    3. Plattform <strong>«Single-page application (SPA)»</strong> hinzufügen, Redirect-URI exakt:<br>
+    <code style="word-break:break-all">${calRedirectUri()}</code><br>
+    4. «API permissions» → Microsoft Graph → Delegated → <strong>Calendars.Read</strong>.<br>
+    5. Die «Application (client) ID» oben eintragen und anmelden — Microsoft fragt einmalig nach Zustimmung.<br>
+    <em>Hinweis: Die Anmeldung muss ~täglich erneuert werden (SPA-Token-Lebensdauer) — ein Tap, solange die Microsoft-Session besteht.</em>
+  </div></details></div>`;
+
   // Daten
   h += `<div class="card"><div class="card-title">Daten</div>
     <button class="btn ghost" onclick="exportData()">Backup exportieren (JSON)</button>
@@ -1394,6 +1593,7 @@ function stopBreath(saveSession) {
 }
 
 // ─── INIT ───
+calHandleRedirect(); // async: tauscht ?code=… gegen Tokens und re-rendert
 render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>

@@ -1,10 +1,12 @@
 # Balance — Handoff & Roadmap
 
-> **Für die nächste Session:** Lies dieses Dokument, dann starte mit **Prio 3 (Outlook Kalender)** —
-> vorher die zwei Hürden in Abschnitt 3 mit Nassim klären (Arbeitsaccount, Tenant-Consent).
+> **Für die nächste Session:** Lies dieses Dokument. Die Roadmap (Prio 1–3) ist **komplett umgesetzt
+> und deployed** (Juli 2026). Als Nächstes: offene Punkte in Abschnitt 9, oder Strava (Abschnitt 4).
 > Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
-> Prio 1 (Engine) und Prio 2 (Wetter) sind umgesetzt und deployed (Juli 2026).
-> **Offen:** Bargella-Koordinaten (Nassim hatte zweimal Grabs kopiert) — im Profil-Tab nachtragbar.
+>
+> **Offen (auf Nassims Seite):**
+> - Bargella-Koordinaten (er hatte zweimal Grabs kopiert) — im Profil-Tab als Wetter-Ort nachtragbar.
+> - Kalender: einmalige Azure-App-Registrierung + erstes Anmelden (Anleitung im Profil-Tab der App).
 
 ---
 
@@ -111,13 +113,28 @@ Funktionen: `fetchWeather()`, `refreshWeather()`, `renderWeatherCard()`. SW-Cach
 
 ---
 
-### ▶ Prio 3 — Outlook Kalender
+### ✅ Prio 3 — Outlook Kalender — **CLIENT-SEITIG FERTIG (Juli 2026)**
 
-- **API:** Microsoft Graph, OAuth 2.0. Scopes: `Calendars.Read` + `offline_access`.
-- **Nur Frei/Belegt-Zeiten ziehen** — **keine** Inhalte, **keine** Betreffzeilen.
-- **Technik:** Statische PWA → Public Client mit PKCE (MSAL.js), kein Client-Secret möglich. Tokens im Browser = Risiko; Alternative wäre der Beelink als Backend.
+Umgesetzt ohne MSAL: handgeschriebener **Auth-Code-Flow mit PKCE (S256)** direkt in `index.html`
+(`calLogin()`, `calHandleRedirect()`, `calAccessToken()`). Graph-Call: `/me/calendarView` mit
+`$select=start,end,showAs,isAllDay` — **nur Frei/Belegt, keine Betreffzeilen, keine Inhalte**.
+Karte «Kalender heute» auf dem Heute-Tab: Timeline 06–21 Uhr (belegt/frei) + Liste der freien Fenster.
+Engine-Regel: größtes freies Fenster 08–19 Uhr ≥3h → Hinweis «Freies Fenster» (Kalender-Hälfte von
+Nassims Regel *„wenn Wetter und Meetings es zulassen"* — Wetter-Rohdaten stehen daneben, kein Verdikt).
 
-> ⚠️ **Zwei reale Hürden:** (1) Nassims Outlook ist vermutlich sein **Arbeitsaccount** — als R&D Scientist mit vertraulichen Firmendaten. Nur Frei/Belegt, nichts anderes. (2) Viele Firmen-Tenants **blockieren User-Consent**; dann braucht es die IT selbst für lesenden Kalenderzugriff. Vorher klären, bevor Aufwand reingeht.
+**Speicherung:** `cal-cfg` (Client-ID, Tenant), `cal-tok` (Tokens), `cal-cache` (15-min-Cache) —
+eigene localStorage-Keys, **bewusst nicht im State** → landen nie im JSON-Backup.
+
+**Was Nassim noch tun muss (Anleitung im Profil-Tab, aufklappbar):**
+1. App-Registrierung auf portal.azure.com (SPA-Plattform, Redirect-URI = exakte Pages-URL, Delegated `Calendars.Read`).
+2. Client-ID im Profil-Tab eintragen, anmelden, Consent bestätigen.
+
+**Status Tenant:** Nassim sagt (Juli 2026), der Firmen-Tenant erlaubt private iPhone-Apps / User-Consent —
+sollte also ohne IT gehen. Falls die Registrierung im Firmen-Tenant doch gesperrt ist: Multi-Tenant-App
+über ein privates (kostenloses) Azure-Konto registrieren und mit dem Arbeitsaccount konsentieren.
+
+**Bekannte Grenze:** SPA-Refresh-Tokens leben ~24h → ~tägliches Neu-Anmelden (ein Tap bei bestehender
+Microsoft-Session). Echte Dauer-Verbindung ginge erst mit Backend (Beelink, sobald angeschafft).
 
 ---
 
