@@ -1,71 +1,51 @@
-# Trainingsprogramm PWA
+# Balance — Gesundheits-PWA
 
-Fitness Tracker als Progressive Web App für iPhone.
+Ganzheitliche Gesundheits-App als Progressive Web App fürs iPhone.
+Vier Säulen: **Training · Ernährung · Erholung/Schlaf · Arbeit** — evidenzbasiert abgestimmt.
 
-## Deployment (GitHub Pages — gratis)
+**Live:** https://femtopeter.github.io/balance-health/
 
-### 1. Repository erstellen
-```bash
-# Neues Git-Repo erstellen
-cd pwa
-git init
-git add .
-git commit -m "initial"
-```
+> 📋 Weiterentwicklung? → **[HANDOFF.md](HANDOFF.md)** (Roadmap, Evidenzbasis, Architektur, Fallstricke)
 
-### 2. Auf GitHub pushen
-```bash
-# Auf github.com neues Repo erstellen: "training-app" (public)
-git remote add origin https://github.com/DEIN-USERNAME/training-app.git
-git branch -M main
-git push -u origin main
-```
+---
 
-### 3. GitHub Pages aktivieren
-- Repo → Settings → Pages
-- Source: "Deploy from a branch"
-- Branch: `main`, Ordner: `/ (root)`
-- Save
+## Features
 
-Die App ist in ~1 Minute live unter:
-`https://DEIN-USERNAME.github.io/training-app/`
+**Heute** — Balance-Ring über alle vier Säulen, Quick-Tiles, evidenzbasierte Nudges
+**Training** — 6-Wochen-Mesozyklus (3× Progressive → Overreaching → Peak → Deload), Rep-Logging mit Ziel-Vergleich, kg-Tracking bei Hantelübungen, Trend-Sparklines, Muskelgruppen-Statistik
+**Ernährung** — personalisiertes Proteinziel (g/kg), Makros, Schlaf, Alkohol-Tracking, 7-Tage-Durchschnitte
+**Erholung & Arbeit** — Resonanzatmung (5.5/min, animiert), Stress & Stimmung, Arbeitszeit + Mikropausen, Hike-&-Fly-/Zone-2-Log
+**Profil** — Zielwerte anpassbar, JSON-Backup Export/Import, dokumentierte Studienlage
 
-### 4. Auf iPhone installieren
-1. Safari öffnen → URL eingeben
-2. Share-Button (Quadrat mit Pfeil) tippen
-3. **"Zum Home-Bildschirm"** wählen
-4. Name bestätigen → Fertig
+Dazu: Dark Mode, offline-fähig, **alle Daten bleiben auf dem Gerät** (localStorage, kein Server).
 
-Die App läuft jetzt wie eine native App — Vollbild, offline-fähig, mit eigenem Icon.
+## Auf dem iPhone installieren
 
-## Alternative: Cloudflare Pages
-```bash
-# Wenn du Cloudflare nutzt:
-npx wrangler pages deploy . --project-name=training-app
-```
+1. URL in **Safari** öffnen
+2. **Teilen** → **„Zum Home-Bildschirm"**
 
-## Alternative: Vercel
-```bash
-npx vercel --prod
-```
+Läuft dann wie eine native App — Vollbild, offline, eigenes Icon.
 
 ## Dateien
+
 ```
-pwa/
-├── index.html      # Komplette App (single file)
+.
+├── index.html      # Komplette App (single file, Vanilla JS)
 ├── manifest.json   # PWA-Manifest
 ├── sw.js           # Service Worker (offline)
 ├── icons/
-│   ├── icon-192.png
-│   └── icon-512.png
+├── HANDOFF.md      # Roadmap & Doku für Weiterentwicklung
 └── README.md
 ```
 
-## Features
-- 6-Wochen Mesozyklus (3P → OR → Peak → Deload)
-- Rep-Logging pro Set mit Target-Vergleich
-- Muskelgruppen-Statistiken
-- Schlaf + Makro-Tracking mit 7-Tage-Durchschnitt
-- Smarte Nudges (Protein, Schlaf, fehlende Logs)
-- Offline-fähig
-- Daten in localStorage (auf dem Gerät, kein Server)
+## Deployment
+
+GitHub Pages, Source: `main` / `/root`. Push genügt:
+
+```bash
+git add -A && git commit -m "…" && git push
+```
+
+Pages baut in ~1 Minute. Bei alter Version am iPhone: PWA vom Homescreen löschen und neu hinzufügen — der Service Worker cached aggressiv.
+
+> Pfade müssen **relativ** (`./`) bleiben — absolute Pfade (`/index.html`) brechen auf der Pages-Unterordner-URL.
