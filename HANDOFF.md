@@ -136,6 +136,13 @@ sollte also ohne IT gehen. Falls die Registrierung im Firmen-Tenant doch gesperr
 **Bekannte Grenze:** SPA-Refresh-Tokens leben ~24h → ~tägliches Neu-Anmelden (ein Tap bei bestehender
 Microsoft-Session). Echte Dauer-Verbindung ginge erst mit Backend (Beelink, sobald angeschafft).
 
+> **Erwogen & vertagt (Juli 2026):** Nassim bot an, den Laptop als Interims-Backend dauerhaft laufen zu
+> lassen. Empfehlung dagegen: bringt aktuell nur den Wegfall des täglichen Kalender-Taps, kostet aber
+> Setup (Node fehlt auf dem Rechner, Tailscale + HTTPS-Zertifikat wegen Mixed Content, Autostart,
+> Standby aus) und ein Laptop ist als 24/7-Server unzuverlässig. Wieder aufgreifen, wenn (a) das
+> tägliche Re-Login in der Praxis wirklich nervt oder (b) **Strava** kommt — dessen Token-Tausch braucht
+> ein Client-Secret und damit zwingend ein Backend.
+
 ---
 
 ## 4. Bereits geprüft — NICHT nochmal recherchieren
