@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Balance">
 <meta name="theme-color" content="#2F5D8C">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Balance — Gesundheit</title>
 <style>
   :root {
@@ -74,9 +74,9 @@
   }
   .nav-btn {
     background: none; border: none; color: var(--dim);
-    padding: 4px 6px; font-size: 0.62rem; font-weight: 600;
+    padding: 6px; font-size: 0.62rem; font-weight: 600; min-height: 44px;
     cursor: pointer; font-family: inherit; transition: color 0.15s;
-    display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex: 1;
   }
   .nav-btn .ico { font-size: 1.1rem; line-height: 1; }
   .nav-btn.active { color: var(--primary); }
@@ -84,7 +84,7 @@
   /* Week selector */
   .week-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px 0; }
   .week-btn {
-    width: 32px; height: 32px; border-radius: 50%;
+    width: 42px; height: 42px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--surface);
     cursor: pointer; font-size: 1rem; font-weight: 600;
     display: flex; align-items: center; justify-content: center; color: var(--text);
@@ -98,7 +98,7 @@
     padding: 3px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .tab {
-    flex: 1; padding: 8px 4px; text-align: center; border-radius: 5px;
+    flex: 1; padding: 11px 4px; min-height: 44px; text-align: center; border-radius: 5px;
     cursor: pointer; font-size: 0.7rem; font-weight: 600; color: var(--dim);
     border: none; background: none; font-family: inherit; white-space: nowrap; transition: all 0.15s;
   }
@@ -107,7 +107,7 @@
   /* Segmented (sub) control */
   .seg { display: flex; gap: 4px; margin-bottom: 12px; }
   .seg button {
-    flex: 1; padding: 7px 4px; border-radius: 6px; border: 1px solid var(--border);
+    flex: 1; padding: 10px 4px; min-height: 44px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--surface); color: var(--dim); font-size: 0.7rem; font-weight: 600;
     font-family: inherit; cursor: pointer;
   }
@@ -135,8 +135,8 @@
   .set-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
   .set-col { text-align: center; }
   .set-input {
-    width: 48px; padding: 7px 4px; border-radius: 5px; border: 1.5px solid var(--border);
-    font-size: 0.82rem; font-family: 'SF Mono','Menlo',monospace; text-align: center;
+    width: 54px; padding: 7px 2px; border-radius: 5px; border: 1.5px solid var(--border);
+    font-size: 16px; font-family: 'SF Mono','Menlo',monospace; text-align: center;
     outline: none; background: var(--surface); color: var(--text); -webkit-appearance: none; appearance: none;
   }
   .set-input:focus { border-color: var(--primary); }
@@ -144,8 +144,8 @@
   .set-input.miss { border-color: var(--orange); background: #F28C2818; }
   .set-label { font-size: 0.6rem; color: var(--dim); margin-top: 2px; }
   .kg-input {
-    width: 62px; padding: 7px 4px; border-radius: 5px; border: 1.5px solid var(--secondary);
-    font-size: 0.8rem; font-family: 'SF Mono','Menlo',monospace; text-align: center;
+    width: 66px; padding: 7px 2px; border-radius: 5px; border: 1.5px solid var(--secondary);
+    font-size: 16px; font-family: 'SF Mono','Menlo',monospace; text-align: center;
     outline: none; background: var(--surface); color: var(--text); -webkit-appearance: none;
   }
   .kg-wrap { display: flex; flex-direction: column; align-items: center; margin-left: auto; }
@@ -162,7 +162,7 @@
   .flabel { font-size: 0.68rem; color: var(--dim); font-weight: 600; margin-bottom: 3px; }
   .finput {
     width: 100%; padding: 9px 10px; border-radius: 6px; border: 1px solid var(--border);
-    font-size: 0.82rem; font-family: inherit; outline: none;
+    font-size: 16px; font-family: inherit; outline: none;
     background: var(--surface); color: var(--text); -webkit-appearance: none;
   }
   .finput:focus { border-color: var(--primary); }
@@ -445,6 +445,7 @@ function loadState() {
     s.work = s.work || {};
     s.hikefly = s.hikefly || [];
     s.weights = s.weights || {};
+    s.cycles = s.cycles || [];   // archivierte Mesozyklen (additiv, v3.1)
     if (!s.locations || !s.locations.length) s.locations = JSON.parse(JSON.stringify(DEFAULT_LOCATIONS));
     return s;
   }
@@ -454,13 +455,13 @@ function loadState() {
     return {
       version: 3, week: old.week || 1, logs: old.logs || {},
       weights: {}, nutrition: old.nutrition || {}, recovery: {}, work: {},
-      hikefly: [], morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
+      hikefly: [], cycles: [], morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
       locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
     };
   }
   return {
     version: 3, week: 1, logs: {}, weights: {}, nutrition: {},
-    recovery: {}, work: {}, hikefly: [], morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
+    recovery: {}, work: {}, hikefly: [], cycles: [], morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
     locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
   };
 }
@@ -1079,12 +1080,15 @@ async function refreshCalendar() {
 
 // ═══ TRAINING ═══
 function renderPlan() {
+  const sub = window._planSub || "plan";
   let h = `<div class="seg">
-    <button class="${statsSub==='muscle'?'':''} ${currentView==='plan'&&!window._showStats?'active':''}" onclick="showTraining()">Plan</button>
-    <button class="${window._showStats?'active':''}" onclick="showStats()">Statistik</button>
+    <button class="${sub==='plan'?'active':''}" onclick="showPlanSub('plan')">Plan</button>
+    <button class="${sub==='stats'?'active':''}" onclick="showPlanSub('stats')">Statistik</button>
+    <button class="${sub==='cycle'?'active':''}" onclick="showPlanSub('cycle')">Zyklus</button>
   </div>`;
 
-  if (window._showStats) return h + renderStats();
+  if (sub === "stats") return h + renderStats();
+  if (sub === "cycle") return h + renderCycle();
 
   h += `<div class="tabs">${DAYS.map((d,i) =>
     `<button class="tab ${i===currentDay?'active':''}" onclick="selectDay(${i})">${d.name}</button>`
@@ -1210,12 +1214,8 @@ function renderStats() {
   });
   h += `</div>`;
 
-  // Volumen pro Woche
-  const weekVols = {};
-  Object.entries(state.logs).forEach(([k, sets]) => {
-    const w = parseInt(k.split("-")[0].replace("W",""));
-    weekVols[w] = (weekVols[w]||0) + sets.reduce((s,v) => s + (Number(v)||0), 0);
-  });
+  // Volumen pro Woche (gemeinsamer Helper, auch von der Zyklus-Auswertung genutzt)
+  const weekVols = weeklyVolumes();
   const weeks = Object.keys(weekVols).map(Number).sort();
   if (weeks.length >= 2) {
     const max = Math.max(...Object.values(weekVols));
@@ -1230,6 +1230,176 @@ function renderStats() {
     h += `</div>`;
   }
   return h;
+}
+
+// ═══ MESOZYKLUS-AUSWERTUNG ═══
+// Vergleich erste vs. letzte Woche mit Daten — nur W1–W5: Woche 6 ist Deload,
+// dort sind Volumen & Intensität bewusst reduziert und würden den Vergleich verzerren.
+
+function weeklyVolumes() {
+  const vols = {};
+  Object.entries(state.logs).forEach(([k, sets]) => {
+    const w = parseInt((k.split("-")[0] || "").replace("W", ""));
+    if (!w) return;
+    vols[w] = (vols[w] || 0) + sets.reduce((s, v) => s + (Number(v) || 0), 0);
+  });
+  return vols;
+}
+
+function cycleExerciseStats() {
+  const out = [];
+  DAYS.forEach(day => (day.exercises || []).forEach(ex => {
+    const weeks = [];
+    for (let w = 1; w <= 5; w++) { // W6 = Deload → nicht gewertet
+      const key = `W${w}-${day.name}-${ex.name}`;
+      const sets = state.logs[key];
+      if (!sets || !sets.length) continue;
+      const nums = sets.map(v => Number(v) || 0).filter(v => v > 0);
+      if (!nums.length) continue;
+      const target = ex.targets[w - 1];
+      const kgRaw = state.weights[key];
+      weeks.push({
+        w, best: Math.max(...nums), target,
+        kg: (kgRaw !== undefined && kgRaw !== "" && kgRaw !== null) ? Number(kgRaw) : null,
+        // Wochenziel in ALLEN Sätzen erreicht (alle Sätze geloggt und ≥ Ziel)
+        allHit: sets.length >= ex.sets && sets.every(v => v !== "" && v != null && Number(v) >= target),
+      });
+    }
+    const e = { day: day.name, ex, weeks };
+    if (weeks.length < 2) {
+      e.status = "few"; // unter 2 Wochen mit Logs → kein belastbarer Vergleich
+    } else {
+      const first = weeks[0], last = weeks[weeks.length - 1];
+      e.first = first; e.last = last;
+      e.dReps = last.best - first.best;
+      e.dKg = (first.kg != null && last.kg != null) ? Math.round((last.kg - first.kg) * 10) / 10 : null;
+      // verbessert = mehr Wdh./Sek. ODER mehr Gewicht (beides ist Progression)
+      e.status = (e.dReps > 0 || (e.dKg !== null && e.dKg > 0)) ? "up" : "flat";
+      e.hitWeeks = weeks.slice(-3).filter(x => x.allHit).length;
+      e.lastN = Math.min(3, weeks.length);
+    }
+    out.push(e);
+  }));
+  return out;
+}
+
+function cycleRecommendations(stats) {
+  const recs = [];
+  stats.forEach(e => {
+    if (e.status === "few") return;
+    // «Gewicht rauf» nur, wenn die Übung nicht stagniert — oder in der letzten
+    // Woche am Ziel-Deckel hängt (alle Sätze am Ziel: mehr Wdh. sind nicht vorgesehen).
+    if (e.hitWeeks >= 2 && (e.status === "up" || e.last.allHit)) {
+      recs.push({ kind: "up", prio: 100 + e.hitWeeks,
+        title: `${e.ex.name} (${e.day}): Gewicht +2–2.5 kg oder schwerere Variante`,
+        text: `Wochenziel in ${e.hitWeeks} der letzten ${e.lastN} Progressiv-Wochen in allen Sätzen erreicht — Zeit für progressive Überlastung.`,
+        why: `Wer das Wochenziel über mehrere Wochen in allen Sätzen trifft, hat sich an die Last angepasst — der Reiz reicht für weiteres Wachstum nicht mehr aus. Nächster Schritt: +2–2.5 kg oder eine schwerere Übungsvariante (progressive Überlastung). Das Volumen bleibt dabei im Evidenz-Korridor 12–20 Sätze/Muskel/Woche (Schoenfeld 2017; Pelland 2025).` });
+    } else if (e.status === "flat") {
+      recs.push({ kind: "hold", prio: 50 - e.dReps,
+        title: `${e.ex.name} (${e.day}): Last halten, Technik/ROM prüfen oder Variante wechseln`,
+        text: `Bester Satz ${e.first.best} → ${e.last.best} ${e.ex.unit}${e.dKg !== null ? `, Gewicht ${e.first.kg} → ${e.last.kg} kg` : ""} — keine Steigerung über den Zyklus.`,
+        why: `Stagnation über ≥2 Wochen heißt selten «mehr Gewicht drauf», sondern meist: Technik oder Bewegungsumfang (ROM) limitieren, oder die Variante setzt keinen neuen Reiz mehr. Erst die Ausführung sauber ziehen, dann wieder progressiv laden — oder die Übungsvariante wechseln.` });
+    }
+  });
+  recs.sort((a, b) => b.prio - a.prio);
+  return recs;
+}
+
+function renderCycle() {
+  const stats = cycleExerciseStats();
+  const withData = stats.filter(e => e.status !== "few");
+  const improved = withData.filter(e => e.status === "up");
+  const few = stats.filter(e => e.status === "few");
+  let h = "";
+
+  // ── Zusammenfassung ──
+  h += `<div class="card"><div class="card-title">Zyklus-Auswertung</div>
+    <div class="card-sub">Bester Satz: erste vs. letzte Woche mit Daten — nur W1–W5. Woche 6 (Deload) ist bewusst ausgeklammert, ihr reduziertes Volumen würde den Vergleich verzerren.</div>`;
+  if (withData.length === 0) {
+    h += `<div class="hint">Noch zu wenig Daten für eine Auswertung — es braucht pro Übung mindestens zwei Progressiv-Wochen (W1–W5) mit Logs. Einfach weiter loggen.</div>`;
+  } else {
+    h += `<div class="stat-row"><div class="stat-name">Verbessert</div>
+      <div class="stat-bar"><div class="stat-fill" style="width:${clampPct(improved.length / withData.length * 100)}%;background:#22C55E"></div></div>
+      <div class="stat-val" style="color:#22C55E">${improved.length}/${withData.length}</div></div>`;
+    const vols = weeklyVolumes();
+    const vw = Object.keys(vols).map(Number).filter(w => w >= 1 && w <= 5).sort((a, b) => a - b);
+    if (vw.length >= 2) {
+      const v0 = vols[vw[0]], v1 = vols[vw[vw.length - 1]];
+      const pct = v0 ? Math.round((v1 - v0) / v0 * 100) : 0;
+      h += `<div class="stat-row"><div class="stat-name">Volumen</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:${clampPct(v1 / Math.max(v0, v1) * 100)}%;background:#3B82F6"></div></div>
+        <div class="stat-val" style="color:#3B82F6">${pct >= 0 ? "+" : ""}${pct}%</div></div>
+      <div class="hint" style="margin-top:2px">Gesamtvolumen (Summe aller Wdh./Sek.) W${vw[0]} → W${vw[vw.length - 1]}: ${v0} → ${v1}.</div>`;
+    }
+    if (few.length) h += `<div class="hint" style="margin-top:6px">${few.length} Übung${few.length > 1 ? "en" : ""}: zu wenig Daten (unter 2 Wochen mit Logs) — nicht gewertet.</div>`;
+  }
+  h += `</div>`;
+
+  // ── Pro Übung ──
+  h += `<div class="card"><div class="card-title">Übungen im Detail</div>`;
+  stats.forEach(e => {
+    let badge, sub;
+    if (e.status === "few") {
+      badge = `<span class="badge" style="background:var(--surface2);color:var(--dim)">zu wenig Daten</span>`;
+      sub = e.weeks.length === 1 ? `nur W${e.weeks[0].w} geloggt` : `keine Logs in W1–W5`;
+    } else {
+      badge = e.status === "up"
+        ? `<span class="badge" style="background:#22C55E22;color:#22C55E">↑ verbessert</span>`
+        : `<span class="badge" style="background:#F28C2822;color:#F28C28">→ stagniert</span>`;
+      sub = `W${e.first.w} → W${e.last.w}: ${e.first.best} → ${e.last.best} ${e.ex.unit} (${e.dReps >= 0 ? "+" : ""}${e.dReps})`;
+      if (e.dKg !== null) sub += ` · ${e.first.kg} → ${e.last.kg} kg (${e.dKg >= 0 ? "+" : ""}${e.dKg})`;
+      else if (e.last.kg != null) sub += ` · ${e.last.kg} kg`;
+    }
+    h += `<div class="list-item" style="align-items:flex-start">
+      <span><strong>${e.ex.name}</strong> <span style="color:var(--dim);font-size:0.66rem">${e.day}</span><br>
+        <span class="hint">${sub}</span></span>
+      <span style="flex-shrink:0;margin-left:8px">${badge}</span>
+    </div>`;
+  });
+  h += `</div>`;
+
+  // ── Empfehlung nächster Zyklus ──
+  const recs = cycleRecommendations(stats);
+  if (recs.length) {
+    h += `<div class="section-divider">Empfehlung nächster Zyklus</div>`;
+    recs.slice(0, 3).forEach(r => {
+      h += `<div class="nudge ${r.kind === "up" ? "good" : ""}">
+        <div class="rec-title">${r.kind === "up" ? "📈" : "🔧"} ${r.title}</div>
+        <div>${r.text}</div>
+        <details class="why"><summary>Warum?</summary><div class="why-body">${r.why}</div></details>
+      </div>`;
+    });
+    if (recs.length > 3) {
+      h += `<div class="card"><div class="card-title">Weitere Empfehlungen</div>`;
+      recs.slice(3).forEach(r => { h += `<div class="list-item"><span>${r.kind === "up" ? "📈" : "🔧"} ${r.title}</span></div>`; });
+      h += `</div>`;
+    }
+  }
+
+  // ── Neuer Mesozyklus ──
+  h += `<div class="card"><div class="card-title">Neuer Mesozyklus</div>
+    <div class="card-sub">Archiviert Trainings-Logs & Gewichte des aktuellen Zyklus und setzt die Woche auf 1. Ernährung, Erholung, Arbeit und Hike & Fly bleiben unangetastet.</div>
+    <button class="btn sec" onclick="startNewCycle()">Neuen Mesozyklus starten</button>`;
+  if ((state.cycles || []).length) {
+    h += `<div class="section-divider">Frühere Zyklen</div>`;
+    state.cycles.slice().reverse().forEach(c => {
+      h += `<div class="list-item"><span>beendet ${c.ended} · Woche ${c.week}</span>
+        <span style="font-family:'SF Mono',monospace">${Object.keys(c.logs || {}).length} Einträge</span></div>`;
+    });
+    h += `<div class="hint" style="margin-top:6px">Archivierte Zyklen sind im JSON-Backup enthalten (Profil → Daten) — dort lässt sich jederzeit alles nachschlagen.</div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+
+function startNewCycle() {
+  const n = Object.keys(state.logs).length;
+  if (!confirm(`Neuen Mesozyklus starten?\n\n• Aktueller Zyklus wird archiviert (${n} geloggte Übungs-Einträge)\n• Trainings-Logs & Gewichte werden geleert\n• Woche wird auf 1 gesetzt\n\nErnährung, Erholung, Arbeit und Hike & Fly bleiben unangetastet.`)) return;
+  state.cycles.push({ ended: todayKey(), week: state.week, logs: state.logs, weights: state.weights });
+  state.logs = {};
+  state.weights = {};
+  state.week = 1;
+  save(); render();
 }
 
 // ═══ ERNÄHRUNG ═══
@@ -1465,9 +1635,8 @@ function renderProfile() {
 }
 
 // ═══ ACTIONS ═══
-function switchView(v) { window._showStats = false; currentView = v; stopBreath(); window.scrollTo(0,0); render(); }
-function showTraining() { window._showStats = false; render(); }
-function showStats() { window._showStats = true; render(); }
+function switchView(v) { window._planSub = "plan"; currentView = v; stopBreath(); window.scrollTo(0,0); render(); }
+function showPlanSub(m) { window._planSub = m; render(); }
 function selectDay(i) { currentDay = i; render(); }
 function changeWeek(d) { state.week = Math.max(1, Math.min(6, state.week + d)); save(); render(); }
 function toggleMorning(key) { state.morningOpen[key] = !state.morningOpen[key]; save(); render(); }

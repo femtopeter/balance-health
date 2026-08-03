@@ -1,12 +1,17 @@
 # Balance — Handoff & Roadmap
 
-> **Für die nächste Session:** Lies dieses Dokument. Die Roadmap (Prio 1–3) ist **komplett umgesetzt
-> und deployed** (Juli 2026). Als Nächstes: offene Punkte in Abschnitt 9, oder Strava (Abschnitt 4).
-> Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
+> **Für die nächste Session:** Lies dieses Dokument. Roadmap (Prio 1–3) **und** die offenen Punkte
+> aus Abschnitt 9 (Mesozyklus-Abschluss, App-Icon, iPhone-Feintuning) sind **umgesetzt und deployed**
+> (Stand August 2026). Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
 >
 > **Offen (auf Nassims Seite):**
 > - Bargella-Koordinaten (er hatte zweimal Grabs kopiert) — im Profil-Tab als Wetter-Ort nachtragbar.
 > - Kalender: einmalige Azure-App-Registrierung + erstes Anmelden (Anleitung im Profil-Tab der App).
+> - Echter iPhone-Test des Feintunings (Touch-Größen, 16px-Inputs) — am Gerät verifizieren.
+>
+> **Offen (wartet auf Hardware):**
+> - Strava-Integration → braucht Backend (Client-Secret) → wartet auf den Beelink Mini-PC.
+> - Vernetzte Waage → wartet auf Anschaffung.
 
 ---
 
@@ -23,9 +28,9 @@ Entstanden aus einem reinen Trainings-Tracker, in v3 zur Gesundheits-App erweite
 
 ## 2. Architektur (bewusst simpel — bitte beibehalten)
 
-- **Vanilla JS, Single-File** `index.html` (~1200 Zeilen). Kein Framework, kein Build-Step.
-- **localStorage**, Key `training-v3` (Auto-Migration von `training-v2` in `loadState()`).
-- **PWA:** `sw.js` (Cache `balance-v3`) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
+- **Vanilla JS, Single-File** `index.html` (~1750 Zeilen). Kein Framework, kein Build-Step.
+- **localStorage**, Key `training-v3` (Auto-Migration von `training-v2` in `loadState()`; neue Felder werden dort additiv ergänzt, z. B. `cycles`).
+- **PWA:** `sw.js` (Cache aktuell `balance-v7` — bei jeder index.html-Änderung hochzählen!) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
 - **Dark Mode** via `prefers-color-scheme`.
 - **Kein Backend.** Daten bleiben auf dem Gerät.
 
@@ -41,6 +46,7 @@ Entstanden aus einem reinen Trainings-Tracker, in v3 zur Gesundheits-App erweite
   "recovery":  { "2026-07-15": { "stress":2, "mood":4, "breathMin":3 } },
   "work":      { "2026-07-15": { "hours":8.5, "breaks":4 } },
   "hikefly":   [ { "date":"2026-07-15", "ascent":850, "dur":95, "loc":"Grabs" } ],
+  "cycles":    [ { "ended":"2026-08-03", "week":6, "logs":{}, "weights":{} } ],
   "profile":   { "bodyweight":75, "proteinPerKg":1.8, "sleepTarget":8,
                  "calorieTarget":2500, "breathMinTarget":5, "workDayTarget":8.5, "breaksTarget":4 },
   "morningOpen": { "morning-0": true }
@@ -56,6 +62,11 @@ Alle Zielwerte leiten sich aus `profile` ab (Proteinziel = `bodyweight × protei
 | `recommendations()` | **Empfehlungs-Engine**: regelbasiert, priorisiert, max. 3 Empfehlungen mit «Warum» |
 | `renderNudges()` | Rendert Engine-Output + kompakte Reminder-Zeile auf «Heute» |
 | `sparkline(wKey)` | Inline-SVG-Trend, bester Satz je Woche |
+| `renderCycle()` | Zyklus-Auswertung (Sub-Tab «Zyklus» im Training-Tab) |
+| `cycleExerciseStats()` | Pro Übung: erste vs. letzte Progressiv-Woche (W1–W5), Delta, Urteil |
+| `cycleRecommendations()` | Regelbasierte Empfehlungen für den nächsten Zyklus |
+| `weeklyVolumes()` | Wochenvolumen aus `logs` — gemeinsamer Helper für Statistik & Zyklus |
+| `startNewCycle()` | Archiviert Logs/Gewichte nach `state.cycles`, Woche → 1 |
 | `startBreath()` / `stopBreath()` | Resonanzatmung 5.5/min |
 | `exportData()` / `importData()` | JSON-Backup |
 
@@ -239,8 +250,27 @@ Pages baut automatisch (~1 Min). Bei alter Version am iPhone: PWA vom Homescreen
 
 ## 9. Offene Punkte (nach der Roadmap)
 
-- [ ] **Mesozyklus-Abschluss**: Auswertung Ende Woche 6 — was hat sich verbessert, wo Stagnation
-- [ ] **Richtiges App-Icon** (aktuell programmatisch generierter Platzhalter)
-- [ ] **Feintuning nach iPhone-Test**: Touch-Größen, Lesbarkeit unterwegs
-- [ ] **Vernetzte Waage** → Gewicht automatisch ins Proteinziel (aktuell der einzige manuell gepflegte Profilwert)
-- [ ] Strava-Integration (nach Prio 3)
+- [x] **Mesozyklus-Abschluss** ✅ (August 2026): Sub-Tab **«Zyklus»** im Training-Tab
+  (`window._planSub = "plan"|"stats"|"cycle"`, gerendert von `renderCycle()`).
+  Pro Übung: bester Satz + Gewicht, erste vs. letzte Progressiv-Woche mit Daten (**nur W1–W5**,
+  W6 = Deload würde verzerren — steht so im UI). Urteile: ↑ verbessert (mehr Wdh. **oder** mehr kg) /
+  → stagniert / zu wenig Daten (<2 Wochen). Zusammenfassung (X/Y verbessert, Volumen-Trend via
+  `weeklyVolumes()`), Empfehlungen mit «Warum»: Wochenziel in ≥2 der letzten 3 Progressiv-Wochen in
+  allen Sätzen erreicht **und nicht stagnierend** (oder am Ziel-Deckel) → Gewicht +2–2.5 kg;
+  stagniert → Last halten, Technik/ROM prüfen. Max. 3 hervorgehoben, Rest als Liste.
+  Dazu **«Neuen Mesozyklus starten»** (`startNewCycle()`, mit `confirm()`): archiviert
+  `{ended, week, logs, weights}` nach `state.cycles` (additiv in `loadState()`, alle drei Pfade),
+  leert Logs/Gewichte, Woche → 1. Frühere Zyklen als Liste; Archiv steckt im JSON-Backup.
+- [x] **Richtiges App-Icon** ✅ (August 2026): Canvas-generiert (Browser, kein Build-Step) —
+  abgerundetes Quadrat, Verlauf #2F5D8C→#1F3D5C, Ring aus 4 Bogensegmenten in den Säulenfarben,
+  heller Mittelpunkt, Motiv maskable-safe in den zentralen 80 %. `icons/icon-512.png`,
+  `icons/icon-192.png` + neu `icons/apple-touch-icon.png` (180px, in `index.html` verlinkt,
+  im SW-Cache). `manifest.json` unverändert `"purpose": "any maskable"`.
+- [x] **Feintuning iPhone** ✅ soweit ohne Gerät möglich (August 2026): Alle Eingabefelder
+  (`.set-input`, `.kg-input`, `.finput`) auf **16px** (verhindert iOS-Autozoom), Breiten 54/66px.
+  Touch-Ziele ≥44px: `.tab` & `.seg button` min-height 44, `.nav-btn` 44, `.week-btn` 42,
+  `.scale button` ~59. Bei 375px geprüft: kein horizontaler Overflow, Satz-Reihen einzeilig
+  (Ausnahme: 5-Satz-Tage — kg-Feld bricht kontrolliert in eigene Zeile, wie bisher).
+  **Echter Geräte-Test durch Nassim steht aus.**
+- [ ] **Vernetzte Waage** → Gewicht automatisch ins Proteinziel (aktuell der einzige manuell gepflegte Profilwert) — wartet auf Hardware
+- [ ] Strava-Integration — braucht Backend fürs Client-Secret → wartet auf Beelink

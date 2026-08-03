@@ -1,10 +1,11 @@
-const CACHE_NAME = 'balance-v6';
+const CACHE_NAME = 'balance-v7';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (e) => {
