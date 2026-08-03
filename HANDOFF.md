@@ -30,7 +30,7 @@ Entstanden aus einem reinen Trainings-Tracker, in v3 zur Gesundheits-App erweite
 
 - **Vanilla JS, Single-File** `index.html` (~1750 Zeilen). Kein Framework, kein Build-Step.
 - **localStorage**, Key `training-v3` (Auto-Migration von `training-v2` in `loadState()`; neue Felder werden dort additiv ergänzt, z. B. `cycles`).
-- **PWA:** `sw.js` (Cache aktuell `balance-v7` — bei jeder index.html-Änderung hochzählen!) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
+- **PWA:** `sw.js` (Cache aktuell `balance-v8` — bei jeder index.html-Änderung hochzählen!) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
 - **Dark Mode** via `prefers-color-scheme`.
 - **Kein Backend.** Daten bleiben auf dem Gerät.
 
