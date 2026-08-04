@@ -261,6 +261,34 @@
   .list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--bg); font-size: 0.76rem; }
   .list-item:last-child { border-bottom: none; }
 
+  /* Schnell-Erfassung: Chips & Quick-Buttons */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 10px 12px; min-height: 42px; border-radius: 21px;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    font-size: 0.72rem; font-weight: 600; font-family: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .chip .chip-sub { color: var(--dim); font-weight: 500; font-size: 0.64rem; }
+  .chip.ghost { background: none; border-style: dashed; color: var(--dim); }
+  .qrow { display: flex; gap: 6px; align-items: stretch; margin-top: 6px; }
+  .qbtn {
+    flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); font-size: 0.78rem; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+  }
+  .qbtn:active { background: var(--primary); color: #fff; }
+  .qset { width: 78px; text-align: center; }
+  .quick-block { padding: 8px 0; border-bottom: 1px solid var(--bg); }
+  .quick-block:last-child { border-bottom: none; padding-bottom: 0; }
+  .quick-block .flabel { margin-bottom: 5px; }
+  .meal-edit { border-bottom: 1px solid var(--bg); padding: 8px 0; }
+  .meal-edit:last-of-type { border-bottom: none; }
+  .m4 { display: flex; gap: 6px; }
+  .m4 > * { flex: 1; min-width: 0; }
+  .tag-example { font-size: 0.58rem; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  textarea.finput { min-height: 96px; resize: vertical; line-height: 1.4; font-family: 'SF Mono','Menlo',monospace; font-size: 16px; }
+
   .spark { display: block; }
   .hint { font-size: 0.7rem; color: var(--dim); line-height: 1.5; }
   a { color: var(--blue); }
@@ -436,6 +464,23 @@ const DEFAULT_LOCATIONS = [
   { name: "Grabs", lat: 47.1666, lon: 9.4242 },
 ];
 
+// Beispiel-Presets — bewusst NICHT automatisch im State. Nur auf Knopfdruck
+// einfügbar und dann als «Beispiel» markiert: die Nährwerte sind Richtwerte
+// für typische Portionen, keine gemessenen Werte von Nassims Rezepten.
+const EXAMPLE_MEALS = [
+  { name: "Skyr + Beeren + Nüsse", protein: 32, carbs: 28, fat: 12, kcal: 350, example: true },
+  { name: "Poulet, Reis, Gemüse",  protein: 45, carbs: 70, fat: 12, kcal: 580, example: true },
+  { name: "Linsen-Curry + Joghurt", protein: 28, carbs: 62, fat: 14, kcal: 520, example: true },
+  { name: "Proteinshake + Banane",  protein: 28, carbs: 30, fat: 3,  kcal: 270, example: true },
+];
+
+// HTML-Escaping für alles, was aus dem State in Attribute/Text fließt
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function loadState() {
   const raw = localStorage.getItem("training-v3");
   if (raw) {
@@ -446,6 +491,8 @@ function loadState() {
     s.hikefly = s.hikefly || [];
     s.weights = s.weights || {};
     s.cycles = s.cycles || [];   // archivierte Mesozyklen (additiv, v3.1)
+    s.meals = s.meals || [];     // Mahlzeiten-Presets (additiv, v3.2)
+    s.ui = s.ui || {};           // UI-Merker, z. B. weggeklickter Erstnutzungs-Hinweis (v3.2)
     if (!s.locations || !s.locations.length) s.locations = JSON.parse(JSON.stringify(DEFAULT_LOCATIONS));
     return s;
   }
@@ -455,13 +502,13 @@ function loadState() {
     return {
       version: 3, week: old.week || 1, logs: old.logs || {},
       weights: {}, nutrition: old.nutrition || {}, recovery: {}, work: {},
-      hikefly: [], cycles: [], morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
+      hikefly: [], cycles: [], meals: [], ui: {}, morningOpen: old.morningOpen || {}, profile: Object.assign({}, DEFAULT_PROFILE),
       locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
     };
   }
   return {
     version: 3, week: 1, logs: {}, weights: {}, nutrition: {},
-    recovery: {}, work: {}, hikefly: [], cycles: [], morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
+    recovery: {}, work: {}, hikefly: [], cycles: [], meals: [], ui: {}, morningOpen: {}, profile: Object.assign({}, DEFAULT_PROFILE),
     locations: JSON.parse(JSON.stringify(DEFAULT_LOCATIONS)),
   };
 }
@@ -617,6 +664,9 @@ function renderToday() {
     </div>
   </div>`;
 
+  // Schnell-Erfassung: senkt die Eingabe-Reibung, damit die Engine überhaupt Daten hat
+  h += renderQuickLog();
+
   // Nudges (smart, evidenzbasiert)
   h += renderNudges();
 
@@ -666,6 +716,119 @@ function renderToday() {
   </div>`;
 
   return h;
+}
+
+// ═══ SCHNELL-ERFASSUNG ═══
+// Der Engpass ist die Dateneingabe, nicht die Datenbreite: die Engine ist exakt
+// so gut wie das, was tatsächlich eingetragen wird. Diese Karte fragt deshalb nur
+// die HEUTE NOCH FEHLENDEN Felder ab — ohne Tab-Wechsel, ohne Tastatur, wo möglich.
+// Bewusst ohne Streaks/Badges: eine Gesundheits-App, die Druck erzeugt, arbeitet
+// gegen die Erholungs-Säule.
+
+function renderQuickLog() {
+  const tk = todayKey();
+  const nut = state.nutrition[tk] || {};
+  const rec = state.recovery[tk] || {};
+  const sleepMissing = nut.sleep === undefined || nut.sleep === "" || nut.sleep === null;
+  const stressMissing = !rec.stress;
+  const prot = Number(nut.protein) || 0;
+  const tgt = proteinTarget();
+  const proteinDone = prot >= tgt;
+  if (!sleepMissing && !stressMissing && proteinDone) return ""; // nichts offen → keine Karte
+
+  let h = `<div class="card"><div class="card-title">Schnell-Erfassung</div>
+    <div class="card-sub">Nur was heute noch offen ist. Die Vollansicht bleibt in «Ernährung» und «Erholung».</div>`;
+
+  if (sleepMissing) {
+    h += `<div class="quick-block"><div class="flabel">Schlaf letzte Nacht (h)</div>
+      <div class="chips">
+        <input class="finput qset" type="number" step="0.5" inputmode="decimal"
+          placeholder="${state.profile.sleepTarget}" onchange="quickSleep(this.value)" />
+        ${[6, 6.5, 7, 7.5, 8, 8.5].map(v => `<button class="chip" onclick="quickSleep(${v})">${v}h</button>`).join("")}
+      </div></div>`;
+  }
+
+  h += `<div class="quick-block"><div class="flabel">Protein heute</div>
+    <div class="stat-row" style="padding:0 0 4px">
+      <div class="stat-bar"><div class="stat-fill" style="width:${clampPct(prot / tgt * 100)}%;background:${prot >= tgt * 0.9 ? '#22C55E' : '#F28C28'}"></div></div>
+      <div class="stat-val">${prot}/${tgt}g</div></div>`;
+  if (proteinDone) {
+    h += `<div class="hint">Proteinziel erreicht.</div>`;
+  } else {
+    h += `<div class="qrow">
+      ${[20, 30, 40].map(g => `<button class="qbtn" onclick="addProteinTo('${tk}',${g})">+${g} g</button>`).join("")}
+      <input class="finput qset" type="number" inputmode="numeric" placeholder="= g"
+        onchange="quickProtein(this.value)" />
+    </div>
+    <div class="hint" style="margin-top:4px">≈ ${proteinPerMeal()} g pro Mahlzeit auf 4 Mahlzeiten verteilt.</div>`;
+    const meals = state.meals || [];
+    h += meals.length
+      ? `<div class="chips" style="margin-top:6px">${meals.map((m, i) =>
+          `<button class="chip" onclick="addMealTo('${tk}',${i})">${esc(m.name)}
+            <span class="chip-sub">${Number(m.protein) || 0} g P</span></button>`).join("")}</div>`
+      : `<div class="chips" style="margin-top:6px">
+          <button class="chip ghost" onclick="switchView('nutrition')">+ Mahlzeiten-Presets anlegen</button></div>`;
+  }
+  h += `</div>`;
+
+  if (stressMissing) {
+    h += `<div class="quick-block"><div class="flabel">Stresslevel (1 = ruhig · 5 = angespannt)</div>
+      <div class="scale">${[1, 2, 3, 4, 5].map(n =>
+        `<button onclick="setRec('stress',${n})">${n}</button>`).join("")}</div></div>`;
+  }
+
+  h += `</div>`;
+  return h;
+}
+
+function quickSleep(v) {
+  if (v === "" || v == null) return;
+  logNut(todayKey(), "sleep", v, "number");
+  render();
+}
+function quickProtein(v) {
+  if (v === "" || v == null) return;
+  logNut(todayKey(), "protein", v, "number");
+  render();
+}
+function addProteinTo(date, g) {
+  const cur = Number((state.nutrition[date] || {}).protein) || 0;
+  logNut(date, "protein", cur + g, "number");
+  render();
+}
+
+// Preset auf einen Tag addieren (nicht setzen) — Mahlzeiten kommen über den Tag verteilt.
+function addMealTo(date, idx) {
+  const m = (state.meals || [])[idx];
+  if (!m) return;
+  if (!state.nutrition[date]) state.nutrition[date] = {};
+  const e = state.nutrition[date];
+  [["protein", "protein"], ["carbs", "carbs"], ["fat", "fat"], ["kcal", "calories"]].forEach(([mk, nk]) => {
+    const add = Number(m[mk]) || 0;
+    if (!add) return;
+    e[nk] = Math.round(((Number(e[nk]) || 0) + add) * 10) / 10;
+  });
+  save(); render();
+}
+
+function addMealPreset() {
+  state.meals.push({ name: "Neue Mahlzeit", protein: 0, carbs: 0, fat: 0, kcal: 0 });
+  save(); render();
+}
+function addExampleMeals() {
+  EXAMPLE_MEALS.forEach(m => state.meals.push(Object.assign({}, m)));
+  save(); render();
+}
+function setMealField(i, field, val) {
+  const m = state.meals[i]; if (!m) return;
+  m[field] = field === "name" ? val : (val === "" ? 0 : Number(val));
+  delete m.example; // von Hand angepasst → kein Beispiel mehr
+  save(); render();
+}
+function delMealPreset(i) {
+  const m = state.meals[i]; if (!m) return;
+  if (!confirm(`Preset «${m.name}» löschen?`)) return;
+  state.meals.splice(i, 1); save(); render();
 }
 
 // ═══ EMPFEHLUNGS-ENGINE ═══
@@ -1419,15 +1582,36 @@ function renderNutrition() {
   const selDate = state._nutDate || today;
   const entry = state.nutrition[selDate] || {};
 
+  const yk = yesterdayKey();
+
+  // Datum + «Gestern»-Direktsprung: Abend-Logging passiert real oft am Folgetag.
   let h = `<div class="card"><div class="card-title">Ernährung & Schlaf</div>
-    <div class="field"><input class="finput" type="date" value="${selDate}" onchange="setNutDate(this.value)" /></div>`;
+    <div class="qrow" style="margin-top:0">
+      <input class="finput" type="date" value="${selDate}" onchange="setNutDate(this.value)" style="flex:2" />
+      <button class="qbtn" onclick="setNutDate('${today}')"
+        style="${selDate === today ? 'background:var(--primary);color:#fff;border-color:var(--primary)' : ''}">Heute</button>
+      <button class="qbtn" onclick="setNutDate('${yk}')"
+        style="${selDate === yk ? 'background:var(--primary);color:#fff;border-color:var(--primary)' : ''}">Gestern</button>
+    </div>
+    <div class="hint" style="margin:4px 0 10px">${selDate === today ? "Heute" : selDate === yk ? "Gestern nachtragen" : "Nachtrag für " + selDate}</div>`;
 
   // Protein-Fortschritt oben
   const pPct = entry.protein ? clampPct(entry.protein/proteinTarget()*100) : 0;
   h += `<div class="stat-row"><div class="stat-name">Protein</div>
     <div class="stat-bar"><div class="stat-fill" style="width:${pPct}%;background:${pPct>=90?'#22C55E':'#F28C28'}"></div></div>
     <div class="stat-val">${entry.protein||0}/${proteinTarget()}g</div></div>
-    <div class="hint" style="margin:2px 0 10px">Ziel ${proteinTarget()}g (${state.profile.proteinPerKg} g/kg · ${state.profile.bodyweight}kg) · optimal ~${proteinPerMeal()}g × 4 Mahlzeiten.</div>`;
+    <div class="hint" style="margin:2px 0 6px">Ziel ${proteinTarget()}g (${state.profile.proteinPerKg} g/kg · ${state.profile.bodyweight}kg) · optimal ~${proteinPerMeal()}g × 4 Mahlzeiten.</div>
+    <div class="qrow" style="margin-bottom:6px">
+      ${[20, 30, 40].map(g => `<button class="qbtn" onclick="addProteinTo('${selDate}',${g})">+${g} g</button>`).join("")}
+    </div>`;
+
+  // Mahlzeiten-Presets als Chips — ein Tap statt vier Zahlen
+  if ((state.meals || []).length) {
+    h += `<div class="flabel">Mahlzeit hinzufügen</div>
+      <div class="chips" style="margin-bottom:10px">${state.meals.map((m, i) =>
+        `<button class="chip" onclick="addMealTo('${selDate}',${i})">${esc(m.name)}
+          <span class="chip-sub">${Number(m.protein) || 0} g P · ${Number(m.kcal) || 0} kcal</span></button>`).join("")}</div>`;
+  }
 
   NUT_FIELDS.forEach(f => {
     h += `<div class="field"><div class="flabel">${f.label}</div>
@@ -1460,6 +1644,42 @@ function renderNutrition() {
     if (aAlc > 0) h += `<div class="hint" style="margin-top:6px">🍺 ${aAlc} Drinks in 7 Tagen. Für Erholung: Trainingstage möglichst alkoholfrei.</div>`;
     h += `</div>`;
   }
+
+  h += renderMealPresets();
+  return h;
+}
+
+// ─── Mahlzeiten-Presets verwalten ───
+// Feste Rezeptrotation ist der Hebel: einmal anlegen, danach ein Tap statt vier Zahlen.
+function renderMealPresets() {
+  const meals = state.meals || [];
+  let h = `<div class="card"><div class="card-title">Mahlzeiten-Presets</div>
+    <div class="card-sub">Deine Rezeptrotation einmal erfassen — danach reicht ein Tap, um sie auf den Tag zu addieren.</div>`;
+
+  if (!meals.length) {
+    h += `<div class="hint" style="margin-bottom:8px">Noch keine Presets. Leg deine wiederkehrenden Mahlzeiten an, oder starte mit Beispielen und passe sie an.</div>`;
+  }
+
+  h += `<details class="why"${meals.length ? "" : " open"}><summary>Presets bearbeiten (${meals.length})</summary><div style="margin-top:8px">`;
+  meals.forEach((m, i) => {
+    h += `<div class="meal-edit">
+      <div class="qrow" style="margin-top:0">
+        <input class="finput" type="text" value="${esc(m.name)}" onchange="setMealField(${i},'name',this.value)" />
+        <button onclick="delMealPreset(${i})" style="flex:0 0 34px;border:none;background:none;color:var(--red);font-size:1.1rem;cursor:pointer">×</button>
+      </div>
+      ${m.example ? `<div class="tag-example" style="margin:3px 0">Beispiel — bitte an dein Rezept anpassen</div>` : ``}
+      <div class="m4" style="margin-top:5px">
+        ${[["protein", "Protein g"], ["carbs", "Carbs g"], ["fat", "Fett g"], ["kcal", "kcal"]].map(([k, l]) =>
+          `<div><div class="flabel">${l}</div>
+            <input class="finput" type="number" inputmode="numeric" value="${Number(m[k]) || 0}"
+              onchange="setMealField(${i},'${k}',this.value)" /></div>`).join("")}
+      </div>
+    </div>`;
+  });
+  h += `<button class="btn ghost" onclick="addMealPreset()">+ Preset anlegen</button>`;
+  h += `<button class="btn ghost" onclick="addExampleMeals()">Beispiele hinzufügen (4)</button>
+    <div class="hint" style="margin-top:6px">Die Beispielwerte sind grobe Richtwerte für typische Portionen — keine gemessenen Werte deiner Rezepte. Bitte anpassen, sonst rechnet die App mit fremden Zahlen.</div>`;
+  h += `</div></details></div>`;
   return h;
 }
 
