@@ -250,7 +250,7 @@
   .breath-meta strong { color: var(--text); }
 
   .btn {
-    width: 100%; padding: 11px; border-radius: 8px; border: none;
+    width: 100%; padding: 11px; min-height: 44px; border-radius: 8px; border: none;
     background: var(--primary); color: #fff; font-size: 0.82rem; font-weight: 700;
     font-family: inherit; cursor: pointer; margin-top: 8px;
   }
@@ -831,6 +831,111 @@ function delMealPreset(i) {
   state.meals.splice(i, 1); save(); render();
 }
 
+// ═══ APPLE HEALTH IMPORT (via Kurzbefehle) ═══
+// HealthKit ist für Safari/PWAs gesperrt — der Kurzbefehl, der JSON in die
+// Zwischenablage legt, ist der einzige client-seitige Weg (kein Backend nötig).
+// Bewusst simples Format, damit der Kurzbefehl trivial bleibt:
+//   [ { "date":"2026-08-03", "sleep":7.4, "hrv":62, "restingHR":48 } ]
+// Regel: bestehende manuelle Einträge werden NIE still überschrieben — der
+// Import zeigt erst an, was er ändern würde.
+
+const HEALTH_FIELDS = [
+  { k: "sleep",     store: "nutrition", label: "Schlaf",   unit: "h" },
+  { k: "hrv",       store: "recovery",  label: "HRV",      unit: "ms" },
+  { k: "restingHR", store: "recovery",  label: "Ruhepuls", unit: "bpm" },
+];
+
+function healthBucket(store) { return store === "nutrition" ? state.nutrition : state.recovery; }
+
+function healthParse(text) {
+  const res = { neu: [], konflikt: [], gleich: 0, fehler: [], tage: 0 };
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { res.fehler.push("Kein gültiges JSON: " + e.message); return res; }
+  if (!Array.isArray(data)) {
+    if (data && typeof data === "object" && data.date) data = [data]; // Einzeltag zulassen
+    else { res.fehler.push('Erwartet wird eine Liste von Tages-Objekten, z. B. [{"date":"2026-08-03","sleep":7.4}].'); return res; }
+  }
+  data.forEach((row, i) => {
+    if (!row || typeof row !== "object") { res.fehler.push(`Eintrag ${i + 1}: kein Objekt.`); return; }
+    const date = String(row.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.fehler.push(`Eintrag ${i + 1}: Datum «${esc(row.date)}» unbrauchbar (erwartet JJJJ-MM-TT).`); return;
+    }
+    res.tage++;
+    HEALTH_FIELDS.forEach(f => {
+      const raw = row[f.k];
+      if (raw === undefined || raw === null || raw === "") return;
+      const v = Number(raw);
+      if (!isFinite(v) || v <= 0) { res.fehler.push(`${date}: ${f.label} «${esc(raw)}» ist keine positive Zahl.`); return; }
+      const alt = (healthBucket(f.store)[date] || {})[f.k];
+      const hatAlt = alt !== undefined && alt !== null && alt !== "";
+      const item = { date, feld: f.k, label: f.label, unit: f.unit, store: f.store, wert: v, alt: hatAlt ? Number(alt) : null };
+      if (!hatAlt) res.neu.push(item);
+      else if (Number(alt) === v) res.gleich++;
+      else res.konflikt.push(item);
+    });
+  });
+  return res;
+}
+
+function healthPreviewText(text) {
+  window._healthText = text;
+  window._healthMsg = null;
+  window._healthPending = String(text || "").trim() ? healthParse(text) : null;
+  render();
+}
+function healthPreview() {
+  const el = document.getElementById("healthInput");
+  healthPreviewText(el ? el.value : "");
+}
+function healthFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => healthPreviewText(e.target.result);
+  reader.readAsText(file);
+  input.value = "";
+}
+function healthClear() { window._healthText = ""; window._healthPending = null; window._healthMsg = null; render(); }
+
+function healthApply(mitKonflikten) {
+  const p = window._healthPending; if (!p) return;
+  const items = mitKonflikten ? p.neu.concat(p.konflikt) : p.neu;
+  if (!items.length) return;
+  items.forEach(it => {
+    const bucket = healthBucket(it.store);
+    if (!bucket[it.date]) bucket[it.date] = {};
+    bucket[it.date][it.feld] = it.wert;
+  });
+  save();
+  const ueber = mitKonflikten ? p.konflikt.length : 0;
+  window._healthPending = null;
+  window._healthText = "";
+  window._healthMsg = `${items.length} Wert${items.length === 1 ? "" : "e"} übernommen${ueber ? `, davon ${ueber} überschrieben` : ""}.`;
+  render();
+}
+
+// ─── HRV-Baseline (rein intraindividuell) ───
+// Absolute HRV-Werte sind zwischen Personen nicht vergleichbar. Verglichen wird
+// deshalb ausschliesslich gegen die eigene Baseline: Mittelwert + Standard-
+// abweichung der letzten 30 Tage, mindestens 7 Werte. Ohne Baseline: keine Aussage.
+function hrvBaseline() {
+  const vals = [];
+  for (let i = 1; i <= 30; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const v = Number((state.recovery[d.toISOString().split("T")[0]] || {}).hrv);
+    if (v > 0) vals.push(v);
+  }
+  if (vals.length < 7) return null;
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const sd = Math.sqrt(vals.reduce((s, v) => s + (v - mean) * (v - mean), 0) / vals.length);
+  return { mean, sd, n: vals.length };
+}
+
+function hasHealthData() {
+  return Object.values(state.recovery || {}).some(r => Number(r.hrv) > 0 || Number(r.restingHR) > 0);
+}
+
 // ═══ EMPFEHLUNGS-ENGINE ═══
 // Regelbasiert & transparent — jede Empfehlung liefert ihr «Warum» mit.
 // Deckt die Steuer-Entscheidungen ab: hart/locker · morgens/abends ·
@@ -872,6 +977,10 @@ function recommendations() {
   const alcYest = Number((state.nutrition[yesterdayKey()] || {}).alcohol) || 0;
   const stress = recToday.stress || null;
   const stress3 = avgField(rec3, "stress");
+  // HRV: nur mit ≥7 Tagen eigener Baseline und nur als Abweichung davon
+  const hrvToday = Number(recToday.hrv) || null;
+  const hrvBase = hrvBaseline();
+  const hrvLow = hrvToday !== null && hrvBase !== null && hrvToday < hrvBase.mean - hrvBase.sd;
   const mood3 = avgField(rec3, "mood");
   const morningDone = day.exercises.some(ex =>
     (state.logs[`W${state.week}-${day.name}-${ex.name}`] || []).some(v => v !== "" && v != null));
@@ -887,6 +996,10 @@ function recommendations() {
     R.push({ prio: 85, tone: "", icon: "🧘", title: "Heute Technik & Mobility statt Last",
       text: `Stress ${stress}/5 und Schlaf ${sleepRef.toFixed(1)}h — beides limitiert heute. Bewegung ja, aber ohne schwere Reize. Plane 5 min Resonanzatmung ein.`,
       why: `Schlafmangel plus hoher Stress senken Kraftleistung und Erholungskapazität gleichzeitig — der Trainingsreiz würde heute mehr Ermüdung als Anpassung erzeugen. Resonanzatmung (~5.5/min) hebt HRV & Vagustonus akut (Laborde 2022).` });
+  } else if (hrvLow && sleepLow && isTrainingDay) {
+    R.push({ prio: 81, tone: "", icon: "📉", title: "Heute Volumen runter",
+      text: `HRV ${Math.round(hrvToday)} ms liegt unter deiner eigenen Baseline (Ø ${Math.round(hrvBase.mean)} ± ${Math.round(hrvBase.sd)} ms aus ${hrvBase.n} Tagen), und der Schlaf war mit ${sleepRef.toFixed(1)}h kurz. Volumen/Intensität ~20–30 % runter, keine harte Session.`,
+      why: `Verglichen wird ausschliesslich gegen deine eigene Baseline — absolute HRV-Werte sind zwischen Personen nicht vergleichbar und für sich genommen ohne Aussage. Eine Abweichung von mehr als einer Standardabweichung nach unten wird hier erst zusammen mit einem zweiten Signal (kurzer Schlaf) verwendet: einzeln schwankt HRV auch durch Messzeitpunkt, Koffein oder Alkohol. Unter 7h Schlaf über ≥14 Tage steigt das Verletzungsrisiko auf ~1.7× (Charest 2022; Rygielski 2024). Das ist Trainingssteuerung, keine medizinische Bewertung.` });
   } else if (sleep3 !== null && sleep3 < 7 && isTrainingDay) {
     R.push({ prio: 80, tone: "", icon: "😴", title: "Heute locker trainieren",
       text: `Schlaf im 3-Tage-Schnitt ${sleep3.toFixed(1)}h. Volumen/Intensität heute ~20–30 % runter, keine harte Session.`,
@@ -1700,6 +1813,9 @@ function renderRecovery() {
     <button class="btn" id="breathBtn" onclick="toggleBreath()">Starten</button>
   </div>`;
 
+  // Importierte Health-Werte (nur wenn welche da sind)
+  h += renderHrvCard();
+
   // Stress & Stimmung
   h += `<div class="card"><div class="card-title">Stress & Stimmung heute</div>
     <div class="flabel">Stresslevel (1 = ruhig · 5 = angespannt)</div>
@@ -1748,6 +1864,42 @@ function renderRecovery() {
       </div>`;
     });
     h += `<div class="hint" style="margin-top:6px">Diese Woche: <strong>${weeklyAscent()}m</strong></div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+
+// HRV/Ruhepuls aus dem Health-Import — bewusst ohne Bewertung des absoluten
+// Werts, nur Einordnung gegen die eigene Baseline.
+function renderHrvCard() {
+  if (!hasHealthData()) return "";
+  const rec = state.recovery[todayKey()] || {};
+  const hrv = Number(rec.hrv) || null;
+  const rhr = Number(rec.restingHR) || null;
+  const base = hrvBaseline();
+
+  let h = `<div class="card"><div class="card-title">HRV & Ruhepuls</div>
+    <div class="card-sub">Aus Apple Health importiert (Profil → Health-Import).</div>`;
+
+  h += `<div class="list-item"><span>HRV heute</span>
+    <span style="font-family:'SF Mono',monospace">${hrv !== null ? hrv + " ms" : "–"}</span></div>`;
+  if (rhr !== null) {
+    h += `<div class="list-item"><span>Ruhepuls heute</span>
+      <span style="font-family:'SF Mono',monospace">${rhr} bpm</span></div>`;
+  }
+
+  if (!base) {
+    h += `<div class="hint" style="margin-top:8px">Noch keine Baseline: es braucht mindestens 7 Tage mit HRV-Werten aus den letzten 30 Tagen. Bis dahin fliesst HRV bewusst nicht in die Empfehlungen ein.</div>`;
+  } else {
+    h += `<div class="list-item"><span>Deine Baseline (${base.n} Tage)</span>
+      <span style="font-family:'SF Mono',monospace">Ø ${Math.round(base.mean)} ± ${Math.round(base.sd)} ms</span></div>`;
+    if (hrv !== null) {
+      const unten = hrv < base.mean - base.sd, oben = hrv > base.mean + base.sd;
+      const farbe = unten ? "#F28C28" : "#22C55E";
+      const txt = unten ? "unter deiner Baseline" : oben ? "über deiner Baseline" : "im Bereich deiner Baseline";
+      h += `<div class="hint" style="margin-top:8px;color:${farbe}"><strong>Heute ${txt}.</strong></div>`;
+    }
+    h += `<div class="hint" style="margin-top:4px">Nur der Vergleich mit deinen eigenen Werten ist aussagekräftig — absolute HRV-Zahlen lassen sich zwischen Personen nicht vergleichen. Einzelwerte schwanken durch Messzeitpunkt, Koffein und Alkohol; die App nutzt HRV deshalb nur zusammen mit einem zweiten Signal. Keine medizinische Bewertung.</div>`;
   }
   h += `</div>`;
   return h;
@@ -1828,6 +1980,9 @@ function renderProfile() {
     <em>Hinweis: Die Anmeldung muss ~täglich erneuert werden (SPA-Token-Lebensdauer) — ein Tap, solange die Microsoft-Session besteht.</em>
   </div></details></div>`;
 
+  // Apple Health Import
+  h += renderHealthImport();
+
   // Daten
   h += `<div class="card"><div class="card-title">Daten</div>
     <button class="btn ghost" onclick="exportData()">Backup exportieren (JSON)</button>
@@ -1851,6 +2006,75 @@ function renderProfile() {
   </div>`;
 
   h += `<div class="hint" style="text-align:center;padding:6px">Balance v3 · Daten bleiben auf deinem Gerät</div>`;
+  return h;
+}
+
+// ─── Health-Import-Fläche (Profil) ───
+// Zwischenablage zuerst: auf dem iPhone ist Einfügen deutlich einfacher als
+// eine Dateiauswahl. Der Datei-Upload bleibt als zweiter Weg daneben.
+function renderHealthImport() {
+  const p = window._healthPending;
+  let h = `<div class="card"><div class="card-title">Apple Health importieren</div>
+    <div class="card-sub">Schlaf, HRV und Ruhepuls per Kurzbefehl aus Health holen und hier einfügen. Bestehende Einträge werden nie still überschrieben.</div>`;
+
+  if (window._healthMsg) h += `<div class="nudge good" style="margin-bottom:8px">${esc(window._healthMsg)}</div>`;
+
+  h += `<div class="field">
+    <textarea class="finput" id="healthInput" placeholder='[{"date":"${todayKey()}","sleep":7.4,"hrv":62,"restingHR":48}]'
+      onchange="window._healthText=this.value">${esc(window._healthText || "")}</textarea></div>
+    <div class="qrow" style="margin-top:0">
+      <button class="qbtn" onclick="healthPreview()">Vorschau</button>
+      <button class="qbtn" onclick="document.getElementById('healthFile').click()">Datei…</button>
+      <button class="qbtn" onclick="healthClear()">Leeren</button>
+    </div>
+    <input type="file" id="healthFile" accept="application/json,.json,text/plain" class="hidden" onchange="healthFile(this)"/>`;
+
+  if (p) {
+    h += `<div class="section-divider">Vorschau</div>`;
+    if (p.fehler.length) {
+      h += `<div class="nudge"><div class="rec-title">⚠️ ${p.fehler.length} Problem${p.fehler.length === 1 ? "" : "e"}</div>
+        ${p.fehler.slice(0, 6).map(f => `<div>· ${f}</div>`).join("")}
+        ${p.fehler.length > 6 ? `<div>· … und ${p.fehler.length - 6} weitere</div>` : ""}</div>`;
+    }
+    if (!p.neu.length && !p.konflikt.length && !p.fehler.length) {
+      h += `<div class="hint">Nichts zu übernehmen — die ${p.gleich} gefundenen Werte stehen bereits identisch drin.</div>`;
+    }
+    if (p.neu.length) {
+      h += `<div class="hint" style="margin-bottom:4px"><strong>${p.neu.length} neue Wert${p.neu.length === 1 ? "" : "e"}</strong> aus ${p.tage} Tag${p.tage === 1 ? "" : "en"}${p.gleich ? ` (${p.gleich} bereits identisch vorhanden)` : ""}:</div>`;
+      p.neu.slice(0, 8).forEach(it => {
+        h += `<div class="list-item"><span>${it.date} · ${it.label}</span>
+          <span style="font-family:'SF Mono',monospace">${it.wert} ${it.unit}</span></div>`;
+      });
+      if (p.neu.length > 8) h += `<div class="hint">… und ${p.neu.length - 8} weitere</div>`;
+    }
+    if (p.konflikt.length) {
+      h += `<div class="nudge" style="margin-top:8px"><div class="rec-title">✋ ${p.konflikt.length} Wert${p.konflikt.length === 1 ? "" : "e"} würde${p.konflikt.length === 1 ? "" : "n"} bestehende Einträge überschreiben</div>
+        <div style="margin-top:4px">Diese Tage sind schon von Hand erfasst. Nichts passiert, solange du es nicht ausdrücklich bestätigst.</div>`;
+      p.konflikt.slice(0, 8).forEach(it => {
+        h += `<div class="list-item"><span>${it.date} · ${it.label}</span>
+          <span style="font-family:'SF Mono',monospace">${it.alt} → ${it.wert} ${it.unit}</span></div>`;
+      });
+      if (p.konflikt.length > 8) h += `<div class="hint">… und ${p.konflikt.length - 8} weitere</div>`;
+      h += `</div>`;
+    }
+    if (p.neu.length) h += `<button class="btn" onclick="healthApply(false)">Nur die ${p.neu.length} neuen übernehmen</button>`;
+    if (p.konflikt.length) h += `<button class="btn ghost" onclick="healthApply(true)">Alles übernehmen (${p.konflikt.length} überschreiben)</button>`;
+  }
+
+  h += `<details class="why" style="margin-top:10px"><summary>Kurzbefehl einrichten (einmalig)</summary><div class="why-body">
+    <strong>Format</strong> — mehr braucht die App nicht. Alle Felder ausser <code>date</code> sind optional:<br>
+    <code style="word-break:break-all">[{"date":"2026-08-03","sleep":7.4,"hrv":62,"restingHR":48}]</code><br>
+    <code>sleep</code> in Stunden, <code>hrv</code> in ms (SDNN, wie Health sie liefert), <code>restingHR</code> in bpm.<br><br>
+    <strong>So baust du den Kurzbefehl</strong> (App «Kurzbefehle» → neuer Kurzbefehl):<br>
+    1. Aktion <em>«Health-Beispiele suchen»</em> hinzufügen, Typ z. B. <em>Herzfrequenzvariabilität</em>, Zeitraum «heute», Limit 1.<br>
+    2. Aktion <em>«Details von Health-Beispiel abrufen»</em> → <em>Wert</em>. Ergebnis mit <em>«Variable setzen»</em> sichern.<br>
+    3. Schritte 1–2 für <em>Ruhefrequenz</em> und <em>Schlafanalyse</em> wiederholen.<br>
+    4. Aktion <em>«Text»</em> mit dem JSON oben, die Variablen an den Stellen der Zahlen einsetzen.<br>
+    5. Abschliessen mit <em>«In die Zwischenablage kopieren»</em>. Kurzbefehl auf den Home-Bildschirm legen oder als Automation morgens laufen lassen.<br>
+    6. Hier ins Feld einfügen → <strong>Vorschau</strong> → übernehmen.<br><br>
+    <em>Schlaf ist der fummeligste Teil: Health liefert Schlaf als Zeitabschnitte, nicht als Stundenzahl. Entweder summierst du die Dauer im Kurzbefehl, oder du trägst Schlaf weiterhin von Hand ein (Schnell-Erfassung auf «Heute») und importierst nur HRV und Ruhepuls.</em><br><br>
+    Aktionsnamen können je nach iOS-Version leicht abweichen. Entscheidend ist allein, dass am Ende das JSON oben in der Zwischenablage liegt — wie es dorthin kommt, ist der App egal. Du kannst es auch von Hand tippen.
+  </div></details></div>`;
   return h;
 }
 
