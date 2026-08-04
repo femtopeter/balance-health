@@ -1,4 +1,4 @@
-const CACHE_NAME = 'balance-v10';
+const CACHE_NAME = 'balance-v11';
 const ASSETS = [
   './',
   './index.html',

@@ -11,11 +11,11 @@ Vier Säulen: **Training · Ernährung · Erholung/Schlaf · Arbeit** — eviden
 
 ## Features
 
-**Heute** — Balance-Ring über alle vier Säulen, Quick-Tiles, evidenzbasierte Nudges
-**Training** — 6-Wochen-Mesozyklus (3× Progressive → Overreaching → Peak → Deload), Rep-Logging mit Ziel-Vergleich, kg-Tracking bei Hantelübungen, Trend-Sparklines, Muskelgruppen-Statistik
-**Ernährung** — personalisiertes Proteinziel (g/kg), Makros, Schlaf, Alkohol-Tracking, 7-Tage-Durchschnitte
-**Erholung & Arbeit** — Resonanzatmung (5.5/min, animiert), Stress & Stimmung, Arbeitszeit + Mikropausen, Hike-&-Fly-/Zone-2-Log
-**Profil** — Zielwerte anpassbar, JSON-Backup Export/Import, dokumentierte Studienlage
+**Heute** — Balance-Ring über alle vier Säulen, **Schnell-Erfassung** der noch offenen Tagesfelder (Schlaf, Protein, Stress) ohne Tab-Wechsel, evidenzbasierte Empfehlungen mit «Warum», Wetter-Rohdaten, Kalender (nur Frei/Belegt)
+**Training** — 6-Wochen-Mesozyklus (3× Progressive → Overreaching → Peak → Deload), Rep-Logging mit Ziel-Vergleich, kg-Tracking bei Hantelübungen, Trend-Sparklines, Muskelgruppen-Statistik, Zyklus-Auswertung mit Empfehlungen für den nächsten Mesozyklus
+**Ernährung** — personalisiertes Proteinziel (g/kg), **Mahlzeiten-Presets** (ein Tap statt vier Zahlen), Protein-Schnellknöpfe, «Gestern»-Nachtrag, Makros, Schlaf, Alkohol-Tracking, 7-Tage-Durchschnitte
+**Erholung & Arbeit** — Resonanzatmung (5.5/min, animiert), Stress & Stimmung, HRV & Ruhepuls gegen die **eigene** Baseline, Arbeitszeit + Mikropausen, Hike-&-Fly-/Zone-2-Log
+**Profil** — Zielwerte anpassbar, **Apple-Health-Import** per Kurzbefehl (Schlaf/HRV/Ruhepuls, überschreibt nichts ohne Rückfrage), Wetter-Orte, Outlook-Anbindung, JSON-Backup Export/Import, dokumentierte Studienlage
 
 Dazu: Dark Mode, offline-fähig, **alle Daten bleiben auf dem Gerät** (localStorage, kein Server).
 

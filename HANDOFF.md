@@ -1,13 +1,18 @@
 # Balance — Handoff & Roadmap
 
-> **Für die nächste Session:** Lies dieses Dokument. Roadmap (Prio 1–3) **und** die offenen Punkte
-> aus Abschnitt 9 (Mesozyklus-Abschluss, App-Icon, iPhone-Feintuning) sind **umgesetzt und deployed**
-> (Stand August 2026). Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
+> **Für die nächste Session:** Lies dieses Dokument. Roadmap (Prio 1–3), die offenen Punkte aus
+> Abschnitt 9 (Mesozyklus-Abschluss, App-Icon, iPhone-Feintuning) **und** die drei Phasen
+> Logging-Reibung / Health-Import / Politur sind **umgesetzt und deployed** (Stand August 2026).
+> Alles Nötige steht hier — Recherche ist bereits gemacht, bitte nicht wiederholen.
 >
 > **Offen (auf Nassims Seite):**
 > - Bargella-Koordinaten (er hatte zweimal Grabs kopiert) — im Profil-Tab als Wetter-Ort nachtragbar.
 > - Kalender: einmalige Azure-App-Registrierung + erstes Anmelden (Anleitung im Profil-Tab der App).
 > - Echter iPhone-Test des Feintunings (Touch-Größen, 16px-Inputs) — am Gerät verifizieren.
+> - **Kurzbefehl für den Health-Import bauen** (Anleitung im Profil-Tab). Das JSON-Format steht und
+>   ist getestet; der Kurzbefehl selbst konnte ohne iPhone **nicht** verifiziert werden.
+> - **Mahlzeiten-Presets mit den echten Rezeptwerten füllen.** Die vier Beispiele in der App sind
+>   grobe Richtwerte, keine gemessenen Werte — ungeprüft übernommen rechnet die App mit fremden Zahlen.
 >
 > **Offen (wartet auf Hardware):**
 > - Strava-Integration → braucht Backend (Client-Secret) → wartet auf den Beelink Mini-PC.
@@ -28,9 +33,9 @@ Entstanden aus einem reinen Trainings-Tracker, in v3 zur Gesundheits-App erweite
 
 ## 2. Architektur (bewusst simpel — bitte beibehalten)
 
-- **Vanilla JS, Single-File** `index.html` (~1750 Zeilen). Kein Framework, kein Build-Step.
-- **localStorage**, Key `training-v3` (Auto-Migration von `training-v2` in `loadState()`; neue Felder werden dort additiv ergänzt, z. B. `cycles`).
-- **PWA:** `sw.js` (Cache aktuell `balance-v8` — bei jeder index.html-Änderung hochzählen!) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
+- **Vanilla JS, Single-File** `index.html` (~2050 Zeilen). Kein Framework, kein Build-Step.
+- **localStorage**, Key `training-v3` (Auto-Migration von `training-v2` in `loadState()`; neue Felder werden dort additiv ergänzt, z. B. `cycles`, `meals`, `ui` — **alle drei Rückgabepfade** von `loadState()` anfassen, sonst brechen echte Daten).
+- **PWA:** `sw.js` (Cache aktuell `balance-v11` — bei jeder index.html-Änderung hochzählen!) + `manifest.json`. Pfade **relativ** (`./`) — zwingend für Pages-Unterordner-URL.
 - **Dark Mode** via `prefers-color-scheme`.
 - **Kein Backend.** Daten bleiben auf dem Gerät.
 
@@ -47,11 +52,15 @@ Entstanden aus einem reinen Trainings-Tracker, in v3 zur Gesundheits-App erweite
   "work":      { "2026-07-15": { "hours":8.5, "breaks":4 } },
   "hikefly":   [ { "date":"2026-07-15", "ascent":850, "dur":95, "loc":"Grabs" } ],
   "cycles":    [ { "ended":"2026-08-03", "week":6, "logs":{}, "weights":{} } ],
+  "meals":     [ { "name":"Poulet, Reis, Gemüse", "protein":45, "carbs":70, "fat":12, "kcal":580 } ],
+  "ui":        { "welcomeDone": true },
   "profile":   { "bodyweight":75, "proteinPerKg":1.8, "sleepTarget":8,
                  "calorieTarget":2500, "breathMinTarget":5, "workDayTarget":8.5, "breaksTarget":4 },
   "morningOpen": { "morning-0": true }
 }
 ```
+`recovery[date]` kann zusätzlich `hrv` (ms) und `restingHR` (bpm) enthalten — beides kommt
+ausschliesslich aus dem Health-Import, wird nie von Hand erfasst.
 Alle Zielwerte leiten sich aus `profile` ab (Proteinziel = `bodyweight × proteinPerKg`).
 
 ### Wichtige Funktionen
@@ -69,6 +78,17 @@ Alle Zielwerte leiten sich aus `profile` ab (Proteinziel = `bodyweight × protei
 | `startNewCycle()` | Archiviert Logs/Gewichte nach `state.cycles`, Woche → 1 |
 | `startBreath()` / `stopBreath()` | Resonanzatmung 5.5/min |
 | `exportData()` / `importData()` | JSON-Backup |
+| `renderQuickLog()` | **Schnell-Erfassung** auf «Heute»: nur die heute noch offenen Felder |
+| `addProteinTo(date,g)` | Protein-Schnellknöpfe +20/+30/+40 g |
+| `addMealTo(date,idx)` | Mahlzeiten-Preset auf einen Tag **addieren** (nicht setzen) |
+| `renderMealPresets()` | Preset-Verwaltung im Ernährungs-Tab (anlegen/bearbeiten/löschen) |
+| `healthParse(text)` | Health-JSON parsen → `{neu, konflikt, gleich, fehler, tage}` |
+| `healthApply(mitKonflikten)` | Import anwenden; ohne Flag bleiben bestehende Einträge unangetastet |
+| `renderHealthImport()` | Import-Fläche + Kurzbefehl-Anleitung im Profil-Tab |
+| `hrvBaseline()` | Ø + SD der letzten 30 Tage, **min. 7 Werte**, sonst `null` |
+| `renderHrvCard()` | HRV/Ruhepuls im Erholungs-Tab, nur gegen die eigene Baseline |
+| `renderWelcome()` / `dismissWelcome()` | Einmaliger Erstnutzungs-Hinweis bei leerem State |
+| `esc(s)` | HTML-Escaping für State-Werte in Attributen |
 
 ---
 
@@ -272,5 +292,39 @@ Pages baut automatisch (~1 Min). Bei alter Version am iPhone: PWA vom Homescreen
   `.scale button` ~59. Bei 375px geprüft: kein horizontaler Overflow, Satz-Reihen einzeilig
   (Ausnahme: 5-Satz-Tage — kg-Feld bricht kontrolliert in eigene Zeile, wie bisher).
   **Echter Geräte-Test durch Nassim steht aus.**
+- [x] **Logging-Reibung senken** ✅ (August 2026) — der eigentliche Engpass war nicht die Datenbreite,
+  sondern die Dateneingabe: ~7 Felder pro Tag von Hand bei 40–50 h Arbeit ist die realistischste
+  Ursache dafür, dass eine Tracking-App nach drei Wochen stirbt.
+  **Schnell-Erfassung** auf «Heute» (`renderQuickLog()`): zeigt nur die heute noch offenen Felder
+  (Schlaf, Protein-Zwischenstand, Stress) und verschwindet vollständig, sobald nichts mehr offen ist.
+  **Mahlzeiten-Presets** (`state.meals`): Nassim kocht in fester Rezeptrotation — einmal anlegen,
+  danach ein Tap statt vier Zahlen (`addMealTo()` addiert Protein/Carbs/Fett/kcal auf den Tag).
+  Verwaltung im Ernährungs-Tab; vier Beispiel-Presets nur auf Knopfdruck und klar als «Beispiel,
+  bitte anpassen» markiert (Flag `example`, verschwindet beim ersten Bearbeiten).
+  **Protein-Schnellknöpfe** +20/+30/+40 g auf «Heute» und im Ernährungs-Tab.
+  **«Gestern»-Direktsprung** im Ernährungs-Tab, weil Abend-Logging real oft am Folgetag passiert.
+  Bewusst **ohne** Streaks/Badges/Push: Nassim will Begründungen, keine Gamification — und eine
+  Gesundheits-App, die Druck erzeugt, arbeitet gegen die Erholungs-Säule.
+- [x] **Apple Health via Kurzbefehle** ✅ (August 2026) — HealthKit ist für PWAs gesperrt (Abschnitt 4),
+  der Kurzbefehl mit JSON in der Zwischenablage ist der einzige client-seitige Weg. Kein Backend.
+  Import-Fläche im Profil-Tab: Textfeld (auf dem iPhone einfacher als Dateiauswahl) **plus** Datei-Upload.
+  Format: `[{"date":"2026-08-03","sleep":7.4,"hrv":62,"restingHR":48}]` → `sleep` nach
+  `nutrition[date].sleep`, `hrv`/`restingHR` nach `recovery[date]`.
+  **Kollisionsschutz:** Der Import zeigt erst an, was er ändern würde. «Nur neue übernehmen» lässt
+  bestehende manuelle Einträge in Ruhe; Überschreiben ist ein eigener, benannter Knopf.
+  **HRV in der Engine (`hrvBaseline()`):** greift nur bei **≥7 Tagen eigener Baseline** (Ø + SD der
+  letzten 30 Tage) **und** nur zusammen mit kurzem Schlaf als zweitem Signal → gleiche Konsequenz wie
+  die Schlafregel (Volumen runter, Prio 81). Verglichen wird **ausschliesslich intraindividuell** —
+  absolute HRV-Werte sind zwischen Personen nicht vergleichbar, das steht so im «Warum».
+  Keine Krankheits- oder Diagnose-Deutung. Karte «HRV & Ruhepuls» im Erholungs-Tab; ohne Baseline
+  erscheint ein klarer Hinweis statt einer Scheinaussage.
+  ⚠️ **Der Kurzbefehl selbst ist ungetestet** (kein iPhone in der Umgebung). Getestet ist der
+  Import-Pfad ab dem JSON. Schlaf liegt in Health als Zeitabschnitte vor, nicht als Stundenzahl —
+  das steht ehrlich in der Anleitung, inkl. Rückfallweg «Schlaf weiter von Hand».
+- [x] **Erstnutzungs-Hinweis** ✅ (August 2026): Bei komplett leerem State ein einmaliger,
+  wegklickbarer Hinweis über dem Balance-Ring (`renderWelcome()`, Merker `state.ui.welcomeDone`) —
+  die Prozentzahlen sehen sonst kaputt aus, obwohl bloss nichts erfasst ist. Kein Onboarding-Flow.
 - [ ] **Vernetzte Waage** → Gewicht automatisch ins Proteinziel (aktuell der einzige manuell gepflegte Profilwert) — wartet auf Hardware
 - [ ] Strava-Integration — braucht Backend fürs Client-Secret → wartet auf Beelink
+- [ ] **Migros-CSV bewusst verworfen** (nicht «noch offen»): Bons sagen, was gekauft, nicht was gegessen
+  wurde, und enthalten keine Nährwerte. Die Mahlzeiten-Presets lösen dasselbe Problem billiger und genauer.

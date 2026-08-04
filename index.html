@@ -649,7 +649,10 @@ function renderToday() {
         stroke-dasharray="${filled} ${C-filled}" stroke-dashoffset="${-i*seg}" />`;
   });
 
-  let h = `<div class="card">
+  // Erstnutzung: erklärt den Ring, bevor er falsch gelesen wird
+  let h = renderWelcome();
+
+  h += `<div class="card">
     <div class="ring-wrap">
       <svg class="ring" viewBox="0 0 100 100" style="transform:rotate(-90deg)">
         ${ringSvg}
@@ -716,6 +719,28 @@ function renderToday() {
   </div>`;
 
   return h;
+}
+
+// Erstnutzungs-Hinweis: bei leerem State wirken die Säulen-Prozente kaputt,
+// obwohl bloss nichts erfasst ist. Einmalig, wegklickbar — bewusst kein
+// mehrstufiges Onboarding.
+function renderWelcome() {
+  if ((state.ui || {}).welcomeDone) return "";
+  const leer = !Object.keys(state.nutrition || {}).length
+    && !Object.keys(state.recovery || {}).length
+    && !Object.keys(state.logs || {}).length;
+  if (!leer) return "";
+  return `<div class="nudge info" style="position:relative;padding-right:36px">
+    <button onclick="dismissWelcome()" aria-label="Hinweis ausblenden"
+      style="position:absolute;top:4px;right:4px;border:none;background:none;color:var(--dim);font-size:1.2rem;line-height:1;cursor:pointer;padding:6px 9px;min-height:32px">×</button>
+    <div class="rec-title">👋 Noch nichts erfasst</div>
+    <div>Solange keine Daten drin sind, sagen die Prozentzahlen unten wenig aus — es ist nichts kaputt. Trag Schlaf und Protein ein, dann werden die Empfehlungen konkret.</div>
+  </div>`;
+}
+function dismissWelcome() {
+  if (!state.ui) state.ui = {};
+  state.ui.welcomeDone = true;
+  save(); render();
 }
 
 // ═══ SCHNELL-ERFASSUNG ═══
